@@ -14,7 +14,6 @@ require (
 )
 
 require (
-	github.com/andres-erbsen/clock v0.0.0-20160526145045-9e14626cd129 // indirect
 	github.com/badoux/checkmail v1.2.1 // indirect
 	github.com/cloudflare/circl v1.1.0 // indirect
 	github.com/elliotchance/orderedmap v1.4.0 // indirect
@@ -44,7 +43,6 @@ require (
 	gitlab.com/elixxir/primitives v0.0.3-0.20220330212736-cce83b5f948f // indirect
 	gitlab.com/xx_network/comms v0.0.4-0.20220315161313-76acb14429ac // indirect
 	gitlab.com/xx_network/ring v0.0.3-0.20220222211904-da613960ad93 // indirect
-	go.uber.org/ratelimit v0.2.0 // indirect
 	golang.org/x/crypto v0.0.0-20220411220226-7b82a4e95df4 // indirect
 	golang.org/x/net v0.0.0-20220412020605-290c469a71a5 // indirect
 	golang.org/x/sys v0.0.0-20220412211240-33da011f77ad // indirect
