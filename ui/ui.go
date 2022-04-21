@@ -52,7 +52,7 @@ func MakeUI(payloadChan chan []byte, broadcastFn func(message []byte) error,
 				}
 
 				payloadParts := strings.SplitN(string(r), ": ", 2)
-				username := "\x1b[38;5;255m" + string(payloadParts[0]) + "\x1b[0m"
+				username := "\x1b[38;5;255m" + string(payloadParts[0]) + "\x1b[0m \u001B[38;5;245m[received " + time.Now().Format("3:04:05 pm") + "]\u001B[0m"
 				message := "\x1b[38;5;250m" + strings.TrimSpace(payloadParts[1]) + "\x1b[0m"
 
 				str := username + "\n" + message + "\n\n"
@@ -121,7 +121,7 @@ func makeLayout(channelName, username, description string, receptionID *id.ID, m
 
 			_, err = fmt.Fprintf(v, "Controls:\n"+
 				"\u001B[38;5;250m"+
-				" Ctrl+X  exit\n"+
+				" Ctrl+C  exit\n"+
 				" Tab     Switch view\n"+
 				" ↑ ↓     Seek input\n"+
 				" Enter   Send message\n"+
@@ -129,11 +129,9 @@ func makeLayout(channelName, username, description string, receptionID *id.ID, m
 				" F5      Message field\n\n"+
 				"\x1b[0m"+
 				"Channel Info:\n"+
-				"\u001B[38;5;250m"+
-				" Name: "+channelName+"\n"+
-				" Description: "+description+"\n"+
-				" ID: "+receptionID.String()+
-				"\x1b[0m")
+				" \u001B[38;5;252mName:\u001B[0m \u001B[38;5;250m"+channelName+"\u001B[0m\n"+
+				" \u001B[38;5;252mDescription:\u001B[0m \u001B[38;5;250m"+description+"\u001B[0m\n"+
+				" \u001B[38;5;252mID:\u001B[0m \u001B[38;5;250m"+receptionID.String()+"\u001B[0m")
 			if err != nil {
 				return err
 			}

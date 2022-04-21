@@ -112,7 +112,7 @@ var bcast = &cobra.Command{
 						jww.ERROR.Printf("Failed to decode sized broadcast: %+v", err)
 					}
 					cbChan <- decodedPayload
-					// jww.DEBUG.Printf("Received broadcast message: %q", payload)
+					jww.DEBUG.Printf("Received broadcast message: %q", payload)
 				}
 
 				symClient := broadcast.NewSymmetricClient(*symChannel, cb,
