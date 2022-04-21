@@ -118,7 +118,7 @@ var bcast = &cobra.Command{
 				symClient := broadcast.NewSymmetricClient(*symChannel, cb,
 					cmixClient, rngStreamGen)
 
-				usernameTag := username + ": "
+				usernameTag := username + ":\xb1"
 				maxPayloadSize := broadcast.MaxSizedBroadcastPayloadSize(
 					cmixClient.GetMaxMessageLength()) - len(usernameTag)
 

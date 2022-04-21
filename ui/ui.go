@@ -51,7 +51,7 @@ func MakeUI(payloadChan chan []byte, broadcastFn func(message []byte) error,
 					jww.ERROR.Print(err)
 				}
 
-				payloadParts := strings.SplitN(string(r), ": ", 2)
+				payloadParts := strings.SplitN(string(r), ":\xb1", 2)
 				username := "\x1b[38;5;255m" + string(payloadParts[0]) + "\x1b[0m \u001B[38;5;245m[received " + time.Now().Format("3:04:05 pm") + "]\u001B[0m"
 				message := "\x1b[38;5;250m" + strings.TrimSpace(payloadParts[1]) + "\x1b[0m"
 
@@ -73,32 +73,27 @@ func MakeUI(payloadChan chan []byte, broadcastFn func(message []byte) error,
 		for {
 			select {
 			case <-ticker.C:
-				messageInputView, err := g.View(messageInput)
-				if err != nil {
-					jww.ERROR.Printf("Failed to get view: %+v", err)
-					return
-				}
-				messageCountView, err := g.View(messageCount)
-				if err != nil {
-					jww.ERROR.Printf("Failed to get view: %+v", err)
-					return
-				}
+				g.Update(func(gui *gocui.Gui) error {
+					messageInputView, err := g.View(messageInput)
+					if err != nil {
+						return errors.Errorf("Failed to get view: %+v", err)
+					}
+					messageCountView, err := g.View(messageCount)
+					if err != nil {
+						return errors.Errorf("Failed to get view: %+v", err)
+					}
 
-				buff := strings.TrimSpace(messageInputView.ViewBuffer())
-				n := len(buff)
+					buff := strings.TrimSpace(messageInputView.Buffer())
+					n := len(buff)
+					jww.DEBUG.Printf("buff %d: %q", n, buff)
 
-				if n > 0 {
-					jww.DEBUG.Printf("Buff %d: %q", len(buff), buff)
-					jww.DEBUG.Printf("%d/%d chars", n, maxMessageLen)
-				}
-
-				messageCountView.Clear()
-				_, err = fmt.Fprintf(messageCountView, "%d/%d chars", n, maxMessageLen)
-				if err != nil {
-					jww.ERROR.Printf("Failed to write to view: %+v", err)
-					return
-				}
-
+					messageCountView.Clear()
+					_, err = fmt.Fprintf(messageCountView, "%d/%d chars", n, maxMessageLen)
+					if err != nil {
+						return errors.Errorf("Failed to write to view: %+v", err)
+					}
+					return nil
+				})
 			}
 		}
 	}()
@@ -274,7 +269,7 @@ func switchActiveTo(name string) func(g *gocui.Gui, v *gocui.View) error {
 
 func readBuffs(broadcastFn func(message []byte) error, maxMessageLen int) func(*gocui.Gui, *gocui.View) error {
 	return func(g *gocui.Gui, v *gocui.View) error {
-		buff := strings.TrimSpace(v.ViewBuffer())
+		buff := strings.TrimSpace(v.Buffer())
 
 		if len(buff) == 0 || len(buff) > maxMessageLen {
 			return nil
