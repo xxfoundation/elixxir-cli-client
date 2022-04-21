@@ -118,10 +118,14 @@ var bcast = &cobra.Command{
 				symClient := broadcast.NewSymmetricClient(*symChannel, cb,
 					cmixClient, rngStreamGen)
 
+				usernameTag := username + ": "
+				maxPayloadSize := broadcast.MaxSizedBroadcastPayloadSize(
+					cmixClient.GetMaxMessageLength()) - len(usernameTag)
+
 				broadcastFn := func(message []byte) error {
 					payload, err := broadcast.NewSizedBroadcast(
 						cmixClient.GetMaxMessageLength(),
-						[]byte(username+": "+string(message)))
+						[]byte(usernameTag+string(message)))
 					if err != nil {
 						return errors.Errorf("failed to make new sized "+
 							"broadcast message: %+v", err)
@@ -141,7 +145,8 @@ var bcast = &cobra.Command{
 					return nil
 				}
 
-				ui.MakeUI(cbChan, broadcastFn, symChannel.Name)
+				ui.MakeUI(cbChan, broadcastFn, symChannel.Name, username,
+					symChannel.Description, symChannel.ReceptionID, maxPayloadSize)
 			}
 		}
 
@@ -160,7 +165,7 @@ var bcast = &cobra.Command{
 // generation.
 func newSymmetricChannel(
 	name, description string, csprng csprng.Source) (crypto.Symmetric, error) {
-	rsaPrivKey, err := rsa.GenerateKey(csprng, 512)
+	rsaPrivKey, err := rsa.GenerateKey(csprng, 32)
 	if err != nil {
 		return crypto.Symmetric{}, errors.Errorf(
 			"Failed to generate RSA key for new symmetric channel: %+v", err)

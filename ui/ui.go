@@ -5,12 +5,16 @@ import (
 	"github.com/jroimartin/gocui"
 	"github.com/pkg/errors"
 	jww "github.com/spf13/jwalterweatherman"
+	"gitlab.com/xx_network/primitives/id"
 	"strings"
+	"time"
 )
 
 const (
+	titleBox     = "titleBox"
 	channelFeed  = "channelFeed"
 	messageInput = "messageInputBox"
+	messageCount = "messageCountBox"
 )
 
 var (
@@ -18,7 +22,9 @@ var (
 	active  = 0
 )
 
-func MakeUI(payloadChan chan []byte, broadcastFn func(message []byte) error, channelName string) {
+func MakeUI(payloadChan chan []byte, broadcastFn func(message []byte) error,
+	channelName, username, description string, receptionID *id.ID,
+	maxMessageLen int) {
 	g, err := gocui.NewGui(gocui.Output256)
 	if err != nil {
 		jww.FATAL.Panicf("Failed to make new GUI: %+v", err)
@@ -30,9 +36,9 @@ func MakeUI(payloadChan chan []byte, broadcastFn func(message []byte) error, cha
 	g.SelFgColor = gocui.ColorGreen
 	g.Highlight = true
 
-	g.SetManagerFunc(makeLayout(channelName))
+	g.SetManagerFunc(makeLayout(channelName, username, description, receptionID, maxMessageLen))
 
-	err = initKeybindings(g, broadcastFn)
+	err = initKeybindings(g, broadcastFn, maxMessageLen)
 	if err != nil {
 		jww.FATAL.Panicf("Failed to generate key bindings: %+v", err)
 	}
@@ -57,13 +63,38 @@ func MakeUI(payloadChan chan []byte, broadcastFn func(message []byte) error, cha
 					return
 				}
 
-				// _, err = channelFeedView.Write([]byte(str))
-				// if err != nil {
-				// 	jww.ERROR.Print(err)
-				// 	return
-				// }
-
 				channelFeedView.Autoscroll = true
+			}
+		}
+	}()
+
+	go func() {
+		ticker := time.NewTicker(100 * time.Millisecond)
+		for {
+			select {
+			case <-ticker.C:
+				messageInputView, err := g.View(messageInput)
+				if err != nil {
+					jww.ERROR.Printf("Failed to get view: %+v", err)
+					return
+				}
+				messageCountView, err := g.View(messageCount)
+				if err != nil {
+					jww.ERROR.Printf("Failed to get view: %+v", err)
+					return
+				}
+
+				n := len(strings.TrimSpace(messageInputView.ViewBuffer()))
+
+				jww.DEBUG.Printf("%d/%d chars", n, maxMessageLen)
+
+				messageCountView.Clear()
+				_, err = fmt.Fprintf(messageCountView, "%d/%d chars", n, maxMessageLen)
+				if err != nil {
+					jww.ERROR.Printf("Failed to write to view: %+v", err)
+					return
+				}
+
 			}
 		}
 	}()
@@ -73,14 +104,63 @@ func MakeUI(payloadChan chan []byte, broadcastFn func(message []byte) error, cha
 	}
 }
 
-func makeLayout(channelName string) func(g *gocui.Gui) error {
+func makeLayout(channelName, username, description string, receptionID *id.ID, maxMessageLen int) func(g *gocui.Gui) error {
 	return func(g *gocui.Gui) error {
 		maxX, maxY := g.Size()
+
+		if v, err := g.SetView(titleBox, maxX-25, 0, maxX-1, maxY-8); err != nil {
+			if err != gocui.ErrUnknownView {
+				return err
+			}
+			v.Title = " xx Channel Chat "
+			v.Wrap = true
+
+			_, err = fmt.Fprintf(v, "Controls:\n"+
+				"\u001B[38;5;250m"+
+				" Ctrl+X  exit\n"+
+				" Tab     Switch view\n"+
+				" ↑ ↓     Seek input\n"+
+				" Enter   Send message\n"+
+				" F4      Channel feed\n"+
+				" F5      Message field\n\n"+
+				"\x1b[0m"+
+				"Channel Info:\n"+
+				"\u001B[38;5;250m"+
+				" Name: "+channelName+"\n"+
+				" Description: "+description+"\n"+
+				" ID: "+receptionID.String()+
+				"\x1b[0m")
+			if err != nil {
+				return err
+			}
+		}
+
+		if v, err := g.SetView(messageCount, maxX-25, maxY-8, maxX-1, maxY-5); err != nil {
+			if err != gocui.ErrUnknownView {
+				return err
+			}
+			v.Frame = false
+
+			_, err = fmt.Fprintf(v, "%d/%d chars", 0, maxMessageLen)
+			if err != nil {
+				return err
+			}
+		}
+
+		if v, err := g.SetView(channelFeed, 0, 0, maxX-26, maxY-7); err != nil {
+			if err != gocui.ErrUnknownView {
+				return err
+			}
+			v.Title = " Channel Feed for \"" + channelName + "\" [F4] "
+			v.Wrap = true
+			v.Autoscroll = true
+		}
+
 		if v, err := g.SetView(messageInput, 0, maxY-6, maxX-1, maxY-1); err != nil {
 			if err != gocui.ErrUnknownView {
 				return err
 			}
-			v.Title = " Enter your message [F5] "
+			v.Title = " Sending Message as \"" + username + "\" [F5] "
 			v.Editable = true
 			v.Wrap = true
 
@@ -88,21 +168,12 @@ func makeLayout(channelName string) func(g *gocui.Gui) error {
 				return err
 			}
 		}
-
-		if v, err := g.SetView(channelFeed, 0, 2, maxX-1, maxY-7); err != nil {
-			if err != gocui.ErrUnknownView {
-				return err
-			}
-			v.Title = " Channel Feed for " + channelName + " [F4] "
-			v.Wrap = true
-			v.Autoscroll = true
-		}
 		return nil
 	}
 }
 
 // initKeybindings initializes all key bindings for the entire UI.
-func initKeybindings(g *gocui.Gui, broadcastFn func(message []byte) error) error {
+func initKeybindings(g *gocui.Gui, broadcastFn func(message []byte) error, maxMessageLen int) error {
 	err := g.SetKeybinding("", gocui.KeyTab, gocui.ModNone, nextView)
 	if err != nil {
 		return errors.Errorf(
@@ -110,7 +181,7 @@ func initKeybindings(g *gocui.Gui, broadcastFn func(message []byte) error) error
 	}
 
 	err = g.SetKeybinding(
-		messageInput, gocui.KeyEnter, gocui.ModNone, readBuffs(broadcastFn))
+		messageInput, gocui.KeyEnter, gocui.ModNone, readBuffs(broadcastFn, maxMessageLen))
 	if err != nil {
 		return errors.Errorf(
 			"failed to set key binding for enter: %+v", err)
@@ -199,11 +270,11 @@ func switchActiveTo(name string) func(g *gocui.Gui, v *gocui.View) error {
 	}
 }
 
-func readBuffs(broadcastFn func(message []byte) error) func(*gocui.Gui, *gocui.View) error {
+func readBuffs(broadcastFn func(message []byte) error, maxMessageLen int) func(*gocui.Gui, *gocui.View) error {
 	return func(g *gocui.Gui, v *gocui.View) error {
-		buff := v.ViewBuffer()
+		buff := strings.TrimSpace(v.ViewBuffer())
 
-		if len(buff) == 0 || len(strings.TrimSpace(buff)) == 0 {
+		if len(buff) == 0 || len(buff) > maxMessageLen {
 			return nil
 		}
 
