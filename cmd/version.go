@@ -5,7 +5,7 @@
 // LICENSE file                                                               //
 ////////////////////////////////////////////////////////////////////////////////
 
-// Handles command-line version functionality
+// Handles command-line version functionality.
 
 package cmd
 
@@ -17,7 +17,7 @@ import (
 	"gitlab.com/xx_network/primitives/utils"
 )
 
-// Change this value to set the version for this build
+// Change this value to set the version for this build.
 const currentVersion = "0.1.0"
 
 func Version() string {
@@ -34,8 +34,8 @@ func init() {
 
 var versionCmd = &cobra.Command{
 	Use:   "version",
-	Short: "Print the version and dependency information for the Elixxir binary",
-	Long:  `Print the version and dependency information for the Elixxir binary`,
+	Short: "Print the version and dependency information for the binary.",
+	Long:  `Print the version and dependency information for the binary.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		fmt.Printf(Version())
 	},
@@ -43,8 +43,8 @@ var versionCmd = &cobra.Command{
 
 var generateCmd = &cobra.Command{
 	Use:   "generate",
-	Short: "Generates version and dependency information for the Elixxir binary",
-	Long:  `Generates version and dependency information for the Elixxir binary`,
+	Short: "Generates version and dependency information for the binary.",
+	Long:  `Generates version and dependency information for the binary.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		utils.GenerateVersionFile(currentVersion)
 	},

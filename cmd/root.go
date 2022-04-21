@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"github.com/spf13/cobra"
 	jww "github.com/spf13/jwalterweatherman"
+	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 	"gitlab.com/elixxir/client/api"
 	"gitlab.com/elixxir/client/e2e"
@@ -21,9 +22,6 @@ import (
 	"strings"
 	"time"
 )
-
-var logPath string
-var logLevel int
 
 // Execute adds all child commands to the root command and sets the flags
 // appropriately. This is called by main.main(). It only needs to happen once to
@@ -41,7 +39,7 @@ var rootCmd = &cobra.Command{
 	Args:  cobra.NoArgs,
 	Run: func(cmd *cobra.Command, args []string) {
 		// Initialize logging and print version
-		initLog(logPath, logLevel)
+		initLog(viper.GetString("logPath"), viper.GetInt("logLevel"))
 		jww.INFO.Printf(Version())
 
 		// Initialise a new client
@@ -103,39 +101,20 @@ func initClient() *api.Client {
 	return client
 }
 
+// waitUntilConnected waits until the network is connected.
 func waitUntilConnected(connected chan bool) {
-	waitTimeout := time.Duration(viper.GetUint("waitTimeout"))
-	timeoutTimer := time.NewTimer(waitTimeout * time.Second)
-	isConnected := false
-	// Wait until we connect or panic if we can't by a timeout
-	for !isConnected {
+	waitTimeout := viper.GetDuration("waitTimeout")
+	timeoutTimer := time.NewTimer(waitTimeout)
+	// Wait until connected or panic after time out is reached
+	for isConnected := false; !isConnected; {
 		select {
 		case isConnected = <-connected:
-			jww.INFO.Printf("Network Status: %v\n",
-				isConnected)
-			break
+			jww.INFO.Printf("Network status: %t", isConnected)
 		case <-timeoutTimer.C:
-			jww.FATAL.Panicf("timeout on connection after %s", waitTimeout*time.Second)
+			jww.FATAL.Panicf("Timed out after %s while waiting for network "+
+				"connection.", waitTimeout)
 		}
 	}
-
-	// Now start a thread to empty this channel and update us
-	// on connection changes for debugging purposes.
-	go func() {
-		prev := true
-		for {
-			select {
-			case isConnected = <-connected:
-				if isConnected != prev {
-					prev = isConnected
-					jww.INFO.Printf(
-						"Network Status Changed: %v\n",
-						isConnected)
-				}
-				break
-			}
-		}
-	}()
 }
 
 func parsePassword(pwStr string) []byte {
@@ -181,6 +160,7 @@ func initLog(logPath string, logLevel int) {
 			logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
 		if err != nil {
 			jww.ERROR.Printf("Could not open log file %q: %+v\n", logPath, err)
+			jww.SetStdoutThreshold(jww.LevelFatal)
 		} else {
 			jww.INFO.Printf("Setting log output to %q", logPath)
 			jww.SetLogOutput(logFile)
@@ -204,21 +184,41 @@ func initLog(logPath string, logLevel int) {
 
 	// Set logging thresholds
 	jww.SetLogThreshold(threshold)
-	jww.SetStdoutThreshold(threshold)
+	jww.SetStdoutThreshold(jww.LevelError)
 	jww.INFO.Printf("Log level set to: %s", threshold)
 }
 
 // init is the initialization function for Cobra which defines commands and
 // flags.
 func init() {
-	rootCmd.PersistentFlags().StringVarP(&logPath, "logPath", "l", "",
+	rootCmd.Flags()
+	rootCmd.PersistentFlags().StringP("logPath", "l", "",
 		"File path to save log file to.")
-	rootCmd.PersistentFlags().IntVarP(&logLevel, "logLevel", "v", 0,
+	bindPFlag(rootCmd.PersistentFlags(), "logPath", rootCmd.Use)
+	rootCmd.PersistentFlags().IntP("logLevel", "v", 0,
 		"Verbosity level for log printing (2+ = Trace, 1 = Debug, 0 = Info).")
+	bindPFlag(rootCmd.PersistentFlags(), "logLevel", rootCmd.Use)
 	rootCmd.PersistentFlags().StringP("session", "s", "",
 		"Sets the initial storage directory for client session data.")
+	bindPFlag(rootCmd.PersistentFlags(), "session", rootCmd.Use)
 	rootCmd.PersistentFlags().StringP("password", "p", "",
 		"Password to the session file.")
+	bindPFlag(rootCmd.PersistentFlags(), "password", rootCmd.Use)
 	rootCmd.PersistentFlags().StringP("ndf", "n", "ndf.json",
 		"Path to the network definition JSON file.")
+	bindPFlag(rootCmd.PersistentFlags(), "ndf", rootCmd.Use)
+	rootCmd.PersistentFlags().Duration("waitTimeout", 15*time.Second,
+		"Duration to wait for messages to arrive.")
+	bindPFlag(rootCmd.PersistentFlags(), "waitTimeout", rootCmd.Use)
+
+	rootCmd.AddCommand(bcast)
+}
+
+// bindPFlag binds the key to a pflag.Flag. Panics on error.
+func bindPFlag(flagSet *pflag.FlagSet, key, use string) {
+	err := viper.BindPFlag(key, flagSet.Lookup(key))
+	if err != nil {
+		jww.FATAL.Panicf(
+			"Failed to bind key %q to a pflag on %s: %+v", key, use, err)
+	}
 }
