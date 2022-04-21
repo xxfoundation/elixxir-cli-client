@@ -84,9 +84,13 @@ func MakeUI(payloadChan chan []byte, broadcastFn func(message []byte) error,
 					return
 				}
 
-				n := len(strings.TrimSpace(messageInputView.ViewBuffer()))
+				buff := strings.TrimSpace(messageInputView.ViewBuffer())
+				n := len(buff)
 
-				jww.DEBUG.Printf("%d/%d chars", n, maxMessageLen)
+				if n > 0 {
+					jww.DEBUG.Printf("Buff %d: %q", len(buff), buff)
+					jww.DEBUG.Printf("%d/%d chars", n, maxMessageLen)
+				}
 
 				messageCountView.Clear()
 				_, err = fmt.Fprintf(messageCountView, "%d/%d chars", n, maxMessageLen)
@@ -291,6 +295,17 @@ func readBuffs(broadcastFn func(message []byte) error, maxMessageLen int) func(*
 		err = v.SetCursor(0, 0)
 		if err != nil {
 			return errors.Errorf("Failed to set cursor back to (0, 0): %+v", err)
+		}
+
+		messageCountView, err := g.View(messageCount)
+		if err != nil {
+			return errors.Errorf("Failed to get view: %+v", err)
+		}
+
+		messageCountView.Clear()
+		_, err = fmt.Fprintf(messageCountView, "%d/%d chars", 0, maxMessageLen)
+		if err != nil {
+			return errors.Errorf("Failed to write to view: %+v", err)
 		}
 
 		return nil
