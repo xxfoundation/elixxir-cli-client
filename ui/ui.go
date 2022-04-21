@@ -14,11 +14,14 @@ const (
 	titleBox     = "titleBox"
 	channelFeed  = "channelFeed"
 	messageInput = "messageInputBox"
+	sendButton   = "sendButtonBox"
 	messageCount = "messageCountBox"
 )
 
+const charCountFmt = "%d/\n%d"
+
 var (
-	viewArr = []string{channelFeed, messageInput}
+	viewArr = []string{channelFeed, messageInput, sendButton}
 	active  = 0
 )
 
@@ -85,10 +88,9 @@ func MakeUI(payloadChan chan []byte, broadcastFn func(message []byte) error,
 
 					buff := strings.TrimSpace(messageInputView.Buffer())
 					n := len(buff)
-					jww.DEBUG.Printf("buff %d: %q", n, buff)
 
 					messageCountView.Clear()
-					_, err = fmt.Fprintf(messageCountView, "%d/%d chars", n, maxMessageLen)
+					_, err = fmt.Fprintf(messageCountView, charCountFmt, n, maxMessageLen)
 					if err != nil {
 						return errors.Errorf("Failed to write to view: %+v", err)
 					}
@@ -107,7 +109,7 @@ func makeLayout(channelName, username, description string, receptionID *id.ID, m
 	return func(g *gocui.Gui) error {
 		maxX, maxY := g.Size()
 
-		if v, err := g.SetView(titleBox, maxX-25, 0, maxX-1, maxY-8); err != nil {
+		if v, err := g.SetView(titleBox, maxX-25, 0, maxX-1, maxY-7); err != nil {
 			if err != gocui.ErrUnknownView {
 				return err
 			}
@@ -120,6 +122,7 @@ func makeLayout(channelName, username, description string, receptionID *id.ID, m
 				" Tab     Switch view\n"+
 				" ↑ ↓     Seek input\n"+
 				" Enter   Send message\n"+
+				" Ctrl+Enter New Line\n"+
 				" F4      Channel feed\n"+
 				" F5      Message field\n\n"+
 				"\x1b[0m"+
@@ -127,18 +130,6 @@ func makeLayout(channelName, username, description string, receptionID *id.ID, m
 				" \u001B[38;5;252mName:\u001B[0m \u001B[38;5;250m"+channelName+"\u001B[0m\n"+
 				" \u001B[38;5;252mDescription:\u001B[0m \u001B[38;5;250m"+description+"\u001B[0m\n"+
 				" \u001B[38;5;252mID:\u001B[0m \u001B[38;5;250m"+receptionID.String()+"\u001B[0m")
-			if err != nil {
-				return err
-			}
-		}
-
-		if v, err := g.SetView(messageCount, maxX-25, maxY-8, maxX-1, maxY-5); err != nil {
-			if err != gocui.ErrUnknownView {
-				return err
-			}
-			v.Frame = false
-
-			_, err = fmt.Fprintf(v, "%d/%d chars", 0, maxMessageLen)
 			if err != nil {
 				return err
 			}
@@ -153,7 +144,7 @@ func makeLayout(channelName, username, description string, receptionID *id.ID, m
 			v.Autoscroll = true
 		}
 
-		if v, err := g.SetView(messageInput, 0, maxY-6, maxX-1, maxY-1); err != nil {
+		if v, err := g.SetView(messageInput, 0, maxY-6, maxX-9, maxY-1); err != nil {
 			if err != gocui.ErrUnknownView {
 				return err
 			}
@@ -162,6 +153,32 @@ func makeLayout(channelName, username, description string, receptionID *id.ID, m
 			v.Wrap = true
 
 			if _, err = g.SetCurrentView(messageInput); err != nil {
+				return err
+			}
+		}
+
+		if v, err := g.SetView(messageCount, maxX-8, maxY-6, maxX-1, maxY-3); err != nil {
+			if err != gocui.ErrUnknownView {
+				return err
+			}
+			v.Frame = false
+			v.Wrap = true
+
+			_, err = fmt.Fprintf(v, charCountFmt, 0, maxMessageLen)
+			if err != nil {
+				return err
+			}
+		}
+
+		if v, err := g.SetView(sendButton, maxX-8, maxY-3, maxX-1, maxY-1); err != nil {
+			if err != gocui.ErrUnknownView {
+				return err
+			}
+
+			v.Highlight = true
+
+			_, err = v.Write([]byte("\n Send "))
+			if err != nil {
 				return err
 			}
 		}
@@ -179,6 +196,27 @@ func initKeybindings(g *gocui.Gui, broadcastFn func(message []byte) error, maxMe
 
 	err = g.SetKeybinding(
 		messageInput, gocui.KeyEnter, gocui.ModNone, readBuffs(broadcastFn, maxMessageLen))
+	if err != nil {
+		return errors.Errorf(
+			"failed to set key binding for enter: %+v", err)
+	}
+
+	err = g.SetKeybinding(
+		sendButton, gocui.KeyEnter, gocui.ModNone, readBuffs(broadcastFn, maxMessageLen))
+	if err != nil {
+		return errors.Errorf(
+			"failed to set key binding for enter: %+v", err)
+	}
+
+	err = g.SetKeybinding(
+		sendButton, gocui.MouseLeft, gocui.ModNone, readBuffs(broadcastFn, maxMessageLen))
+	if err != nil {
+		return errors.Errorf(
+			"failed to set key binding for enter: %+v", err)
+	}
+
+	err = g.SetKeybinding(
+		messageInput, gocui.KeyCtrlJ, gocui.ModNone, addLine)
 	if err != nil {
 		return errors.Errorf(
 			"failed to set key binding for enter: %+v", err)
@@ -243,10 +281,10 @@ func switchActive(g *gocui.Gui, v *gocui.View) error {
 		return errors.Errorf(
 			"failed to set %s as current view: %+v", v.Name(), err)
 	}
-	if v.Name() == channelFeed {
-		g.Cursor = false
-	} else {
+	if v.Name() == messageInput {
 		g.Cursor = true
+	} else {
+		g.Cursor = false
 	}
 	return nil
 }
@@ -258,24 +296,28 @@ func switchActiveTo(name string) func(g *gocui.Gui, v *gocui.View) error {
 			return errors.Errorf(
 				"failed to set %s as current view: %+v", name, err)
 		}
-		if name == channelFeed {
-			g.Cursor = false
-		} else {
+		if name == messageInput {
 			g.Cursor = true
+		} else {
+			g.Cursor = false
 		}
 		return nil
 	}
 }
 
 func readBuffs(broadcastFn func(message []byte) error, maxMessageLen int) func(*gocui.Gui, *gocui.View) error {
-	return func(g *gocui.Gui, v *gocui.View) error {
+	return func(g *gocui.Gui, _ *gocui.View) error {
+		v, err := g.View(messageInput)
+		if err != nil {
+			return err
+		}
 		buff := strings.TrimSpace(v.Buffer())
 
 		if len(buff) == 0 || len(buff) > maxMessageLen {
 			return nil
 		}
 
-		err := broadcastFn([]byte(buff))
+		err = broadcastFn([]byte(buff))
 		if err != nil {
 			return err
 		}
@@ -296,13 +338,18 @@ func readBuffs(broadcastFn func(message []byte) error, maxMessageLen int) func(*
 		}
 
 		messageCountView.Clear()
-		_, err = fmt.Fprintf(messageCountView, "%d/%d chars", 0, maxMessageLen)
+		_, err = fmt.Fprintf(messageCountView, charCountFmt, 0, maxMessageLen)
 		if err != nil {
 			return errors.Errorf("Failed to write to view: %+v", err)
 		}
 
 		return nil
 	}
+}
+
+func addLine(g *gocui.Gui, v *gocui.View) error {
+	v.EditNewLine()
+	return nil
 }
 
 func scrollView(dy int) func(*gocui.Gui, *gocui.View) error {
@@ -335,10 +382,10 @@ func nextView(g *gocui.Gui, v *gocui.View) error {
 		return err
 	}
 
-	if v.Name() == channelFeed {
-		g.Cursor = false
-	} else {
+	if v.Name() == messageInput {
 		g.Cursor = true
+	} else {
+		g.Cursor = false
 	}
 
 	active = nextIndex

@@ -156,8 +156,10 @@ func initLog(logPath string, logLevel int) {
 
 	// Set log file output
 	if logPath != "" {
-		logFile, err := os.OpenFile(
-			logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+		// logFile, err := os.OpenFile(
+		// 	logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+		// TODO: switch back to line above once testing is done
+		logFile, err := os.OpenFile(logPath, os.O_CREATE, 0644)
 		if err != nil {
 			jww.ERROR.Printf("Could not open log file %q: %+v\n", logPath, err)
 			jww.SetStdoutThreshold(jww.LevelFatal)
