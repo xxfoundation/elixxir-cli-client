@@ -18,7 +18,7 @@ const (
 	messageCount = "messageCountBox"
 )
 
-const charCountFmt = "%d/\n%d"
+const charCountFmt = "%4d/\n%4d"
 
 var (
 	viewArr = []string{channelFeed, messageInput, sendButton, titleBox}

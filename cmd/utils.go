@@ -56,7 +56,7 @@ type mockCmix struct {
 
 func newMockCmix(handler *mockCmixHandler) *mockCmix {
 	return &mockCmix{
-		numPrimeBytes: 97,
+		numPrimeBytes: 1024,
 		health:        true,
 		handler:       handler,
 	}

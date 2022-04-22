@@ -82,9 +82,11 @@ var bcast = &cobra.Command{
 			}
 
 			cbChan := make(chan []byte, 100)
-			cb := func(payload []byte, _ receptionID.EphemeralIdentity,
-				_ rounds.Round) {
-				jww.DEBUG.Printf("Received broadcast message: %q", payload)
+			cb := func(payload []byte, ephID receptionID.EphemeralIdentity,
+				round rounds.Round) {
+				jww.DEBUG.Printf(
+					"Received broadcast message from %d on round %d: %q",
+					ephID.EphId.Int64(), round.ID, payload)
 				decodedPayload, err := broadcast.DecodeSizedBroadcast(payload)
 				if err != nil {
 					jww.ERROR.Printf("Failed to decode sized broadcast: %+v", err)
@@ -168,7 +170,7 @@ var bcast = &cobra.Command{
 // generation.
 func newSymmetricChannel(
 	name, description string, csprng csprng.Source) (crypto.Symmetric, error) {
-	rsaPrivKey, err := rsa.GenerateKey(csprng, 32)
+	rsaPrivKey, err := rsa.GenerateKey(csprng, 512)
 	if err != nil {
 		return crypto.Symmetric{}, errors.Errorf(
 			"Failed to generate RSA key for new symmetric channel: %+v", err)
