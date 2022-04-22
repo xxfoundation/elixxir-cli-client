@@ -51,7 +51,8 @@ func MakeUI(payloadChan chan []byte, broadcastFn func(message []byte) error,
 			case r := <-payloadChan:
 				channelFeedView, err := g.View(channelFeed)
 				if err != nil {
-					jww.ERROR.Print(err)
+					jww.ERROR.Printf("Failed to get view %q: %+v", channelFeed, err)
+					continue
 				}
 
 				payloadParts := strings.SplitN(string(r), ":\xb1", 2)
@@ -63,7 +64,7 @@ func MakeUI(payloadChan chan []byte, broadcastFn func(message []byte) error,
 				_, err = fmt.Fprintf(channelFeedView, str)
 				if err != nil {
 					jww.ERROR.Print(err)
-					return
+					continue
 				}
 
 				channelFeedView.Autoscroll = true

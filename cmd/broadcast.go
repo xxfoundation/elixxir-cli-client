@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"git.xx.network/elixxir/cli-client/client"
 	"git.xx.network/elixxir/cli-client/ui"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
@@ -63,15 +64,22 @@ var bcast = &cobra.Command{
 
 		if viper.GetBool("load") {
 
-			var cmixClient broadcast.Client
-			var client *api.Client
+			var clientNet broadcast.Client
+			var cMixClient *api.Client
+			var err error
 			if viper.GetBool("testUI") {
-				cmixHandler := newMockCmixHandler()
-				cmixClient = newMockCmix(cmixHandler)
+				clientNet = newMockCmix(newMockCmixHandler())
 			} else {
 				// Initialise a new client
-				client = initClient()
-				cmixClient = client.GetNetworkInterface()
+				cMixClient, err = client.InitClient(
+					parsePassword(viper.GetString("password")),
+					viper.GetString("session"),
+					viper.GetString("ndf"),
+				)
+				if err != nil {
+					jww.FATAL.Panicf("Failed to initialise client: %+v", err)
+				}
+				clientNet = cMixClient.GetNetworkInterface()
 			}
 
 			jww.DEBUG.Printf("Joining symmetric channel.")
@@ -95,26 +103,29 @@ var bcast = &cobra.Command{
 			}
 
 			symClient := broadcast.NewSymmetricClient(*symChannel, cb,
-				cmixClient, rngStreamGen)
+				clientNet, rngStreamGen)
 
 			if !viper.GetBool("testUI") {
+				// waitTimeout := viper.GetDuration("waitTimeout")
+				// err = client.ConnectToNetwork(cMixClient, waitTimeout)
+
 				// Start the network follower
-				err = client.StartNetworkFollower(5 * time.Second)
+				err = cMixClient.StartNetworkFollower(5 * time.Second)
 				if err != nil {
 					jww.FATAL.Panicf("Failed to start the network follower: %+v", err)
 				}
 
 				// Wait until connected or crash on timeout
 				connected := make(chan bool, 10)
-				client.GetNetworkInterface().AddHealthCallback(
-					func(isconnected bool) { connected <- isconnected })
+				cMixClient.GetNetworkInterface().AddHealthCallback(
+					func(isConnected bool) { connected <- isConnected })
 				waitUntilConnected(connected)
 
 				// After connection, wait until registered with at least 85% of nodes
 				for numReg, total := 1, 100; numReg < (total*3)/4; {
 					time.Sleep(1 * time.Second)
 
-					numReg, total, err = client.GetNodeRegistrationStatus()
+					numReg, total, err = cMixClient.GetNodeRegistrationStatus()
 					if err != nil {
 						jww.FATAL.Panicf("Failed to get node registration status: %+v",
 							err)
@@ -126,19 +137,21 @@ var bcast = &cobra.Command{
 
 			usernameTag := username + ":\xb1"
 			maxPayloadSize := broadcast.MaxSizedBroadcastPayloadSize(
-				cmixClient.GetMaxMessageLength()) - len(usernameTag)
+				clientNet.GetMaxMessageLength()) - len(usernameTag)
 
 			broadcastFn := func(message []byte) error {
 				payload, err := broadcast.NewSizedBroadcast(
-					cmixClient.GetMaxMessageLength(),
+					clientNet.GetMaxMessageLength(),
 					[]byte(usernameTag+string(message)))
 				if err != nil {
 					return errors.Errorf("failed to make new sized "+
 						"broadcast message: %+v", err)
 				}
 
-				round, ephID, err := symClient.Broadcast(
-					payload, cmix.GetDefaultCMIXParams())
+				params := cmix.GetDefaultCMIXParams()
+				params.DebugTag = "SymmChannel"
+
+				round, ephID, err := symClient.Broadcast(payload, params)
 				if err != nil {
 					return errors.Errorf(
 						"failed to broadcast payload: %+v", err)
@@ -155,8 +168,8 @@ var bcast = &cobra.Command{
 				symChannel.Description, symChannel.ReceptionID, maxPayloadSize)
 
 			// Stop network follower
-			if client != nil {
-				err := client.StopNetworkFollower()
+			if cMixClient != nil {
+				err := cMixClient.StopNetworkFollower()
 				if err != nil {
 					jww.WARN.Printf("Failed to stop network follower: %+v", err)
 				}

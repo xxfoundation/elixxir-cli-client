@@ -19,6 +19,7 @@ import (
 	"gitlab.com/elixxir/client/api"
 	"io/fs"
 	"io/ioutil"
+	"log"
 	"os"
 	"strings"
 	"time"
@@ -133,9 +134,9 @@ func initLog(logPath string, logLevel int) {
 			jww.ERROR.Printf("Could not open log file %q: %+v\n", logPath, err)
 			jww.SetStdoutThreshold(jww.LevelFatal)
 		} else {
-			jww.INFO.Printf("Setting log output to %q", logPath)
 			// jww.SetLogOutput(logFile)
 			jww.SetStdoutOutput(logFile)
+			jww.INFO.Printf("Setting log output to %q", logPath)
 		}
 	} else {
 		jww.INFO.Printf("No log output set: no log path provided")
@@ -146,9 +147,11 @@ func initLog(logPath string, logLevel int) {
 	if logLevel > 1 {
 		// Turn on trace logs
 		threshold = jww.LevelTrace
+		jww.SetFlags(log.LstdFlags | log.Lmicroseconds)
 	} else if logLevel == 1 {
 		// Turn on debugging logs
 		threshold = jww.LevelDebug
+		jww.SetFlags(log.LstdFlags | log.Lmicroseconds)
 	} else {
 		// Turn on info logs
 		threshold = jww.LevelInfo
