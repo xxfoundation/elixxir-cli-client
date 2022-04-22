@@ -11,12 +11,13 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
+	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	jww "github.com/spf13/jwalterweatherman"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 	"gitlab.com/elixxir/client/api"
-	"gitlab.com/elixxir/client/e2e"
+	"io/fs"
 	"io/ioutil"
 	"os"
 	"strings"
@@ -41,33 +42,6 @@ var rootCmd = &cobra.Command{
 		// Initialize logging and print version
 		initLog(viper.GetString("logPath"), viper.GetInt("logLevel"))
 		jww.INFO.Printf(Version())
-
-		// Initialise a new client
-		client := initClient()
-
-		// Start the network follower
-		err := client.StartNetworkFollower(5 * time.Second)
-		if err != nil {
-			jww.FATAL.Panicf("Failed to start the network follower: %+v", err)
-		}
-
-		// Wait until connected or crash on timeout
-		connected := make(chan bool, 10)
-		client.GetHealth().AddChannel(connected)
-		waitUntilConnected(connected)
-
-		// After connection, wait until registered with at least 85% of nodes
-		for numReg, total := 1, 100; numReg < (total*3)/4; {
-			time.Sleep(1 * time.Second)
-
-			numReg, total, err = client.GetNodeRegistrationStatus()
-			if err != nil {
-				jww.FATAL.Panicf("Failed to get node registration status: %+v",
-					err)
-			}
-
-			jww.INFO.Printf("Registering with nodes (%d/%d)...", numReg, total)
-		}
 	},
 }
 
@@ -75,27 +49,24 @@ func initClient() *api.Client {
 	pass := parsePassword(viper.GetString("password"))
 	storeDir := viper.GetString("session")
 
-	// Load NDF
-	ndfJSON, err := ioutil.ReadFile(viper.GetString("ndf"))
-	if err != nil {
-		jww.FATAL.Panicf("Failed to read NDF file: %+v", err)
-	}
+	// create a new client if none exist
+	if _, err := os.Stat(storeDir); errors.Is(err, fs.ErrNotExist) {
+		// Load NDF
+		ndfJSON, err := ioutil.ReadFile(viper.GetString("ndf"))
+		if err != nil {
+			jww.FATAL.Panicf("Failed to read NDF file: %+v", err)
+		}
 
-	err = api.NewClient(string(ndfJSON), storeDir, pass, "")
-	if err != nil {
-		jww.FATAL.Panicf("Failed to create new client: %+v", err)
+		err = api.NewClient(string(ndfJSON), storeDir, pass, "")
+		if err != nil {
+			jww.FATAL.Panicf("Failed to create new client: %+v", err)
+		}
 	}
 
 	// Load the client
-	client, err := api.Login(storeDir, pass, nil, e2e.GetDefaultParams())
+	client, err := api.Login(storeDir, pass, nil, api.GetDefaultParams())
 	if err != nil {
 		jww.FATAL.Panicf("Failed to log in into new client: %+v", err)
-	}
-
-	// Stop network follower
-	err = client.StopNetworkFollower()
-	if err != nil {
-		jww.WARN.Printf("[FT] Failed to stop network follower: %+v", err)
 	}
 
 	return client
@@ -156,16 +127,15 @@ func initLog(logPath string, logLevel int) {
 
 	// Set log file output
 	if logPath != "" {
-		// logFile, err := os.OpenFile(
-		// 	logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
-		// TODO: switch back to line above once testing is done
-		logFile, err := os.OpenFile(logPath, os.O_CREATE, 0644)
+		logFile, err := os.OpenFile(
+			logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
 		if err != nil {
 			jww.ERROR.Printf("Could not open log file %q: %+v\n", logPath, err)
 			jww.SetStdoutThreshold(jww.LevelFatal)
 		} else {
 			jww.INFO.Printf("Setting log output to %q", logPath)
-			jww.SetLogOutput(logFile)
+			// jww.SetLogOutput(logFile)
+			jww.SetStdoutOutput(logFile)
 		}
 	} else {
 		jww.INFO.Printf("No log output set: no log path provided")
@@ -186,7 +156,7 @@ func initLog(logPath string, logLevel int) {
 
 	// Set logging thresholds
 	jww.SetLogThreshold(threshold)
-	jww.SetStdoutThreshold(jww.LevelError)
+	jww.SetStdoutThreshold(threshold)
 	jww.INFO.Printf("Log level set to: %s", threshold)
 }
 
@@ -200,7 +170,7 @@ func init() {
 	rootCmd.PersistentFlags().IntP("logLevel", "v", 0,
 		"Verbosity level for log printing (2+ = Trace, 1 = Debug, 0 = Info).")
 	bindPFlag(rootCmd.PersistentFlags(), "logLevel", rootCmd.Use)
-	rootCmd.PersistentFlags().StringP("session", "s", "",
+	rootCmd.PersistentFlags().StringP("session", "s", "session",
 		"Sets the initial storage directory for client session data.")
 	bindPFlag(rootCmd.PersistentFlags(), "session", rootCmd.Use)
 	rootCmd.PersistentFlags().StringP("password", "p", "",
