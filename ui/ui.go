@@ -21,7 +21,7 @@ const (
 const charCountFmt = "%d/\n%d"
 
 var (
-	viewArr = []string{channelFeed, messageInput, sendButton}
+	viewArr = []string{channelFeed, messageInput, sendButton, titleBox}
 	active  = 0
 )
 
@@ -89,8 +89,16 @@ func MakeUI(payloadChan chan []byte, broadcastFn func(message []byte) error,
 					buff := strings.TrimSpace(messageInputView.Buffer())
 					n := len(buff)
 
+					var color string
+					if n >= maxMessageLen {
+						messageInputView.Editable = false
+						color = "\x1b[0;31m"
+					} else {
+						messageInputView.Editable = true
+					}
+
 					messageCountView.Clear()
-					_, err = fmt.Fprintf(messageCountView, charCountFmt, n, maxMessageLen)
+					_, err = fmt.Fprintf(messageCountView, color+charCountFmt+"\x1b[0m", n, maxMessageLen)
 					if err != nil {
 						return errors.Errorf("Failed to write to view: %+v", err)
 					}
@@ -115,6 +123,7 @@ func makeLayout(channelName, username, description string, receptionID *id.ID, m
 			}
 			v.Title = " xx Channel Chat "
 			v.Wrap = true
+			v.Autoscroll = true
 
 			_, err = fmt.Fprintf(v, "Controls:\n"+
 				"\u001B[38;5;250m"+
@@ -127,9 +136,9 @@ func makeLayout(channelName, username, description string, receptionID *id.ID, m
 				" F5      Message field\n\n"+
 				"\x1b[0m"+
 				"Channel Info:\n"+
-				" \u001B[38;5;252mName:\u001B[0m \u001B[38;5;250m"+channelName+"\u001B[0m\n"+
-				" \u001B[38;5;252mDescription:\u001B[0m \u001B[38;5;250m"+description+"\u001B[0m\n"+
-				" \u001B[38;5;252mID:\u001B[0m \u001B[38;5;250m"+receptionID.String()+"\u001B[0m")
+				"\x1b[38;5;252mName:\n\x1b[38;5;248m"+channelName+"\x1b[0m\n\n"+
+				"\x1b[38;5;252mDescription:\n\x1b[38;5;248m"+description+"\x1b[0m\n\n"+
+				"\x1b[38;5;252mID:\n\x1b[38;5;248m"+receptionID.String()+"\x1b[0m")
 			if err != nil {
 				return err
 			}
@@ -222,6 +231,27 @@ func initKeybindings(g *gocui.Gui, broadcastFn func(message []byte) error, maxMe
 			"failed to set key binding for enter: %+v", err)
 	}
 
+	err = g.SetKeybinding(
+		messageInput, gocui.KeyBackspace, gocui.ModNone, backSpace)
+	if err != nil {
+		return errors.Errorf(
+			"failed to set key binding for enter: %+v", err)
+	}
+
+	err = g.SetKeybinding(
+		messageInput, gocui.KeyBackspace2, gocui.ModNone, backSpace)
+	if err != nil {
+		return errors.Errorf(
+			"failed to set key binding for enter: %+v", err)
+	}
+
+	err = g.SetKeybinding(
+		messageInput, gocui.KeyDelete, gocui.ModNone, backSpace)
+	if err != nil {
+		return errors.Errorf(
+			"failed to set key binding for enter: %+v", err)
+	}
+
 	err = g.SetKeybinding("", gocui.KeyCtrlC, gocui.ModNone, quit)
 	if err != nil {
 		return errors.Errorf(
@@ -303,6 +333,13 @@ func switchActiveTo(name string) func(g *gocui.Gui, v *gocui.View) error {
 		}
 		return nil
 	}
+}
+
+func backSpace(_ *gocui.Gui, v *gocui.View) error {
+	v.EditDelete(true)
+	v.Editable = true
+
+	return nil
 }
 
 func readBuffs(broadcastFn func(message []byte) error, maxMessageLen int) func(*gocui.Gui, *gocui.View) error {
