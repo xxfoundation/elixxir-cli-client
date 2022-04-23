@@ -132,7 +132,7 @@ func makeLayout(channelName, username, description string, receptionID *id.ID, m
 				" Tab     Switch view\n"+
 				" ↑ ↓     Seek input\n"+
 				" Enter   Send message\n"+
-				" Ctrl+Enter New Line\n"+
+				" Ctrl+J  New Line\n"+
 				" F4      Channel feed\n"+
 				" F5      Message field\n\n"+
 				"\x1b[0m"+
