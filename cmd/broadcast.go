@@ -1,28 +1,15 @@
 package cmd
 
 import (
-	"fmt"
 	"git.xx.network/elixxir/cli-client/client"
 	"git.xx.network/elixxir/cli-client/ui"
-	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	jww "github.com/spf13/jwalterweatherman"
 	"github.com/spf13/viper"
 	"gitlab.com/elixxir/client/api"
 	"gitlab.com/elixxir/client/broadcast"
-	"gitlab.com/elixxir/client/cmix"
-	"gitlab.com/elixxir/client/cmix/identity/receptionID"
-	"gitlab.com/elixxir/client/cmix/rounds"
-	crypto "gitlab.com/elixxir/crypto/broadcast"
-	cmixCrypto "gitlab.com/elixxir/crypto/cmix"
 	"gitlab.com/elixxir/crypto/fastRNG"
 	"gitlab.com/xx_network/crypto/csprng"
-	"gitlab.com/xx_network/crypto/signature/rsa"
-	"gitlab.com/xx_network/primitives/id"
-	"gitlab.com/xx_network/primitives/netTime"
-	"gitlab.com/xx_network/primitives/utils"
-	"strconv"
-	"time"
 )
 
 var bcast = &cobra.Command{
@@ -34,43 +21,49 @@ var bcast = &cobra.Command{
 		initLog(viper.GetString("logPath"), viper.GetInt("logLevel"))
 		jww.INFO.Printf(Version())
 
-		rngStreamGen := fastRNG.NewStreamGenerator(12, 1024,
-			csprng.NewSystemRNG)
+		rng := fastRNG.NewStreamGenerator(12, 1024, csprng.NewSystemRNG)
 		filePath := viper.GetString("open")
-		username := viper.GetString("username")
 
+		// Generate new symmetric channel
 		if viper.GetBool("new") {
 			name := viper.GetString("name")
 			description := viper.GetString("description")
 
-			jww.DEBUG.Printf("Generating new symmetric channel.")
-			// Create and save new symmetric channel if no username is
-			// supplied
-			rng := rngStreamGen.GetStream()
-			symChannel, err := newSymmetricChannel(name, description, rng)
+			// Create and save new symmetric channel if no username is supplied
+			symChannel, err := client.NewSymmetric(name, description, rng)
 			if err != nil {
 				jww.FATAL.Panicf(
 					"Could not make new symmetric channel: %+v", err)
 			}
-			rng.Close()
 
-			err = writeSymmetricChannel(filePath, symChannel)
+			jww.INFO.Printf(
+				"Generated new symmetric channel %q: %+v", name, symChannel)
+
+			err = client.WriteSymmetric(filePath, symChannel)
 			if err != nil {
 				jww.FATAL.Panicf(
 					"Could not write symmetric channel to file: %+v", err)
 			}
+
+			jww.INFO.Printf(
+				"Saved new symmetric channel %q to file %q.", name, filePath)
+
 			return
 		}
 
+		// Join existing symmetric channel
 		if viper.GetBool("load") {
 
-			var clientNet broadcast.Client
+			// Initialise a new client
 			var cMixClient *api.Client
+			var broadcastClient broadcast.Client
 			var err error
-			if viper.GetBool("testUI") {
-				clientNet = newMockCmix(newMockCmixHandler())
+			if viper.GetBool("test") {
+				// Initialise mock client for testing the UI
+				broadcastClient = newMockCmix(newMockCmixHandler())
+				jww.INFO.Printf("Initialised mock client for testing.")
 			} else {
-				// Initialise a new client
+				// Initialise the real client
 				cMixClient, err = client.InitClient(
 					parsePassword(viper.GetString("password")),
 					viper.GetString("session"),
@@ -79,198 +72,83 @@ var bcast = &cobra.Command{
 				if err != nil {
 					jww.FATAL.Panicf("Failed to initialise client: %+v", err)
 				}
-				clientNet = cMixClient.GetNetworkInterface()
+				broadcastClient = cMixClient.GetNetworkInterface()
+				jww.INFO.Printf("Initialised client.")
 			}
 
-			jww.DEBUG.Printf("Joining symmetric channel.")
-			symChannel, err := loadSymmetricChannel(filePath)
+			// Load symmetric channel from file
+			symChannel, err := client.LoadSymmetricChannel(filePath)
 			if err != nil {
 				jww.FATAL.Panicf(
 					"Could not load symmetric channel from file: %+v", err)
 			}
+			jww.DEBUG.Printf("Loaded symmetric channel %q from file: %+v",
+				symChannel.Name, symChannel)
 
-			cbChan := make(chan []byte, 100)
-			cb := func(payload []byte, ephID receptionID.EphemeralIdentity,
-				round rounds.Round) {
-				jww.DEBUG.Printf(
-					"Received broadcast message from %d on round %d: %q",
-					ephID.EphId.Int64(), round.ID, payload)
-				decodedPayload, err := broadcast.DecodeSizedBroadcast(payload)
-				if err != nil {
-					jww.ERROR.Printf("Failed to decode sized broadcast: %+v", err)
-				}
-				cbChan <- decodedPayload
-			}
+			cb, cbChan := client.ReceptionCallback()
 
 			symClient := broadcast.NewSymmetricClient(*symChannel, cb,
-				clientNet, rngStreamGen)
+				broadcastClient, rng)
 
-			if !viper.GetBool("testUI") {
-				// waitTimeout := viper.GetDuration("waitTimeout")
-				// err = client.ConnectToNetwork(cMixClient, waitTimeout)
-
-				// Start the network follower
-				err = cMixClient.StartNetworkFollower(5 * time.Second)
+			// Connect to the network
+			if !viper.GetBool("test") {
+				waitTimeout := viper.GetDuration("waitTimeout")
+				err = client.ConnectToNetwork(cMixClient, waitTimeout)
 				if err != nil {
-					jww.FATAL.Panicf("Failed to start the network follower: %+v", err)
-				}
-
-				// Wait until connected or crash on timeout
-				connected := make(chan bool, 10)
-				cMixClient.GetNetworkInterface().AddHealthCallback(
-					func(isConnected bool) { connected <- isConnected })
-				waitUntilConnected(connected)
-
-				// After connection, wait until registered with at least 85% of nodes
-				for numReg, total := 1, 100; numReg < (total*3)/4; {
-					time.Sleep(1 * time.Second)
-
-					numReg, total, err = cMixClient.GetNodeRegistrationStatus()
-					if err != nil {
-						jww.FATAL.Panicf("Failed to get node registration status: %+v",
-							err)
-					}
-
-					jww.INFO.Printf("Registering with nodes (%d/%d)...", numReg, total)
+					jww.FATAL.Panicf("Failed to connect to network: %+v", err)
 				}
 			}
 
-			usernameTag := username + ":\xb1"
-			maxPayloadSize := broadcast.MaxSizedBroadcastPayloadSize(
-				clientNet.GetMaxMessageLength()) - len(usernameTag)
-
-			broadcastFn := func(message []byte) error {
-				payload, err := broadcast.NewSizedBroadcast(
-					clientNet.GetMaxMessageLength(),
-					[]byte(usernameTag+string(message)))
-				if err != nil {
-					return errors.Errorf("failed to make new sized "+
-						"broadcast message: %+v", err)
-				}
-
-				params := cmix.GetDefaultCMIXParams()
-				params.DebugTag = "SymmChannel"
-
-				round, ephID, err := symClient.Broadcast(payload, params)
-				if err != nil {
-					return errors.Errorf(
-						"failed to broadcast payload: %+v", err)
-				}
-
-				jww.DEBUG.Printf(
-					"Broadcasted payload on round %s to ephemeral ID %d",
-					round.String(), ephID.Int64())
-
-				return nil
-			}
+			username := viper.GetString("username")
+			broadcastFn, maxPayloadSize := client.BroadcastFn(
+				symClient, username, broadcastClient)
 
 			ui.MakeUI(cbChan, broadcastFn, symChannel.Name, username,
 				symChannel.Description, symChannel.ReceptionID, maxPayloadSize)
 
-			// Stop network follower
-			if cMixClient != nil {
-				err := cMixClient.StopNetworkFollower()
-				if err != nil {
-					jww.WARN.Printf("Failed to stop network follower: %+v", err)
+			if !viper.GetBool("test") {
+				// Stop network follower
+				if cMixClient != nil {
+					err := cMixClient.StopNetworkFollower()
+					if err != nil {
+						jww.WARN.Printf("Failed to stop network follower: %+v", err)
+					}
 				}
 			}
 		}
 	},
 }
 
-// newSymmetricChannel generates a new crypto.Symmetric channel with the given
-// name and description. The reception ID and, salt, and RSA key are randomly
-// generation.
-func newSymmetricChannel(
-	name, description string, csprng csprng.Source) (crypto.Symmetric, error) {
-	rsaPrivKey, err := rsa.GenerateKey(csprng, 512)
-	if err != nil {
-		return crypto.Symmetric{}, errors.Errorf(
-			"Failed to generate RSA key for new symmetric channel: %+v", err)
-	}
-
-	rid, err := id.NewRandomID(csprng, id.User)
-	if err != nil {
-		return crypto.Symmetric{}, errors.Errorf(
-			"Failed to generate reception ID for new symmetric channel: %+v", err)
-	}
-
-	return crypto.Symmetric{
-		ReceptionID: rid,
-		Name:        name,
-		Description: description,
-		Salt:        cmixCrypto.NewSalt(csprng, 32),
-		RsaPubKey:   rsaPrivKey.GetPublic(),
-	}, nil
-}
-
-// writeSymmetricChannel serialises and write the symmetric channel to the given
-// file path. If no path is supplied, it is printed to stdout.
-func writeSymmetricChannel(path string, s crypto.Symmetric) error {
-	data, err := s.Marshal()
-	if err != nil {
-		return errors.Errorf("failed to marshal symmetric channel: %+v", err)
-	}
-
-	if path != "" {
-		err = utils.WriteFileDef(path, data)
-		if err != nil {
-			return errors.Errorf(
-				"failed to write symmetric channel to file: %+v", err)
-		}
-	} else {
-		fmt.Printf("%s", data)
-	}
-
-	return nil
-}
-
-// writeSymmetricChannel serialises and write the symmetric channel to the given
-// file path. If no path is supplied, it is printed to stdout.
-func loadSymmetricChannel(path string) (*crypto.Symmetric, error) {
-	data, err := utils.ReadFile(path)
-	if err != nil {
-		return nil, errors.Errorf(
-			"failed to read symmetric channel data from file: %+v", err)
-	}
-
-	s, err := crypto.UnmarshalSymmetric(data)
-	if err != nil {
-		return nil, errors.Errorf(
-			"failed to unmarshal symmetric channel: %+v", err)
-	}
-
-	return s, nil
-}
-
 // init is the initialization function for Cobra which defines commands and
 // flags.
 func init() {
-	bcast.Flags().Bool("testUI", false,
+	bcast.Flags().Bool("test", false,
 		"Skips creating a client and connecting to network so that the UI "+
 			"can be tested on its own.")
-	bindPFlag(bcast.Flags(), "testUI", bcast.Use)
+	bindPFlag(bcast.Flags(), "test", bcast.Use)
 
-	timeNow := strconv.Itoa(int(netTime.Now().UnixNano()))
 	bcast.Flags().Bool("new", false,
 		"Creates a new symmetric broadcast channel with the specified name "+
 			"and description.")
 	bindPFlag(bcast.Flags(), "new", bcast.Use)
+
 	bcast.Flags().Bool("load", false,
 		"Joins an existing symmetric broadcast channel .")
 	bindPFlag(bcast.Flags(), "load", bcast.Use)
-	bcast.Flags().String("name",
-		"Channel-"+timeNow,
+
+	bcast.Flags().StringP("name", "m", "",
 		"The name of the channel.")
 	bindPFlag(bcast.Flags(), "name", bcast.Use)
-	bcast.Flags().String("description",
-		"Description of channel made at "+timeNow+".",
+
+	bcast.Flags().StringP("description", "d", "",
 		"Description of the channel.")
 	bindPFlag(bcast.Flags(), "description", bcast.Use)
+
 	bcast.Flags().StringP("open", "o", "",
 		"Location to output/open channel information file. Prints to stdout "+
 			"if not path is supplied.")
 	bindPFlag(bcast.Flags(), "open", bcast.Use)
+
 	bcast.Flags().StringP("username", "u", "",
 		"Join the channel with this username.")
 	bindPFlag(bcast.Flags(), "username", bcast.Use)

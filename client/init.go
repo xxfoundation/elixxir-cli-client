@@ -10,6 +10,8 @@ import (
 	"time"
 )
 
+// InitClient initializes and returns a new api.Client. If a session folder
+// already exists, then the client is loaded instead.
 func InitClient(password []byte, storeDir, ndfPath string) (*api.Client, error) {
 	// Create a new client if none exist
 	if _, err := os.Stat(storeDir); errors.Is(err, fs.ErrNotExist) {
@@ -34,6 +36,7 @@ func InitClient(password []byte, storeDir, ndfPath string) (*api.Client, error) 
 	return client, nil
 }
 
+// ConnectToNetwork connects the client to the network.
 func ConnectToNetwork(client *api.Client, timeout time.Duration) error {
 	// Start the network follower
 	err := client.StartNetworkFollower(5 * time.Second)

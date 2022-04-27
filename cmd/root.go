@@ -11,14 +11,10 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
-	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	jww "github.com/spf13/jwalterweatherman"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
-	"gitlab.com/elixxir/client/api"
-	"io/fs"
-	"io/ioutil"
 	"log"
 	"os"
 	"strings"
@@ -46,49 +42,7 @@ var rootCmd = &cobra.Command{
 	},
 }
 
-func initClient() *api.Client {
-	pass := parsePassword(viper.GetString("password"))
-	storeDir := viper.GetString("session")
-
-	// create a new client if none exist
-	if _, err := os.Stat(storeDir); errors.Is(err, fs.ErrNotExist) {
-		// Load NDF
-		ndfJSON, err := ioutil.ReadFile(viper.GetString("ndf"))
-		if err != nil {
-			jww.FATAL.Panicf("Failed to read NDF file: %+v", err)
-		}
-
-		err = api.NewClient(string(ndfJSON), storeDir, pass, "")
-		if err != nil {
-			jww.FATAL.Panicf("Failed to create new client: %+v", err)
-		}
-	}
-
-	// Load the client
-	client, err := api.Login(storeDir, pass, nil, api.GetDefaultParams())
-	if err != nil {
-		jww.FATAL.Panicf("Failed to log in into new client: %+v", err)
-	}
-
-	return client
-}
-
-// waitUntilConnected waits until the network is connected.
-func waitUntilConnected(connected chan bool) {
-	waitTimeout := viper.GetDuration("waitTimeout")
-	timeoutTimer := time.NewTimer(waitTimeout)
-	// Wait until connected or panic after time out is reached
-	for isConnected := false; !isConnected; {
-		select {
-		case isConnected = <-connected:
-			jww.INFO.Printf("Network status: %t", isConnected)
-		case <-timeoutTimer.C:
-			jww.FATAL.Panicf("Timed out after %s while waiting for network "+
-				"connection.", waitTimeout)
-		}
-	}
-}
-
+// parsePassword parses the client password string.
 func parsePassword(pwStr string) []byte {
 	if strings.HasPrefix(pwStr, "0x") {
 		return getPwFromHexString(pwStr[2:])
@@ -99,19 +53,23 @@ func parsePassword(pwStr string) []byte {
 	}
 }
 
+// getPwFromHexString decodes the hex-encoded password.
 func getPwFromHexString(pwStr string) []byte {
 	pwBytes, err := hex.DecodeString(
 		fmt.Sprintf("%0*d%s", 66-len(pwStr), 0, pwStr))
 	if err != nil {
-		jww.FATAL.Panicf("Failed to get password from hex string: %+v", err)
+		jww.FATAL.Panicf(
+			"Failed to get password %q from hex string: %+v", pwStr, err)
 	}
 	return pwBytes
 }
 
+// getPwFromB64String decodes the base 64 encoded password.
 func getPwFromB64String(pwStr string) []byte {
 	pwBytes, err := base64.StdEncoding.DecodeString(pwStr)
 	if err != nil {
-		jww.FATAL.Panicf("Failed to get password from base 64 string: %+v", err)
+		jww.FATAL.Panicf(
+			"Failed to get password %q from base 64 string: %+v", pwStr, err)
 	}
 	return pwBytes
 }
@@ -167,21 +125,26 @@ func initLog(logPath string, logLevel int) {
 // flags.
 func init() {
 	rootCmd.Flags()
-	rootCmd.PersistentFlags().StringP("logPath", "l", "",
+	rootCmd.PersistentFlags().StringP("logPath", "l", "cli-client.log",
 		"File path to save log file to.")
 	bindPFlag(rootCmd.PersistentFlags(), "logPath", rootCmd.Use)
+
 	rootCmd.PersistentFlags().IntP("logLevel", "v", 0,
 		"Verbosity level for log printing (2+ = Trace, 1 = Debug, 0 = Info).")
 	bindPFlag(rootCmd.PersistentFlags(), "logLevel", rootCmd.Use)
+
 	rootCmd.PersistentFlags().StringP("session", "s", "session",
 		"Sets the initial storage directory for client session data.")
 	bindPFlag(rootCmd.PersistentFlags(), "session", rootCmd.Use)
+
 	rootCmd.PersistentFlags().StringP("password", "p", "",
 		"Password to the session file.")
 	bindPFlag(rootCmd.PersistentFlags(), "password", rootCmd.Use)
+
 	rootCmd.PersistentFlags().StringP("ndf", "n", "ndf.json",
 		"Path to the network definition JSON file.")
 	bindPFlag(rootCmd.PersistentFlags(), "ndf", rootCmd.Use)
+
 	rootCmd.PersistentFlags().Duration("waitTimeout", 15*time.Second,
 		"Duration to wait for messages to arrive.")
 	bindPFlag(rootCmd.PersistentFlags(), "waitTimeout", rootCmd.Use)
