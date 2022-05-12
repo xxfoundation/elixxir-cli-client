@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"fmt"
 	"git.xx.network/elixxir/cli-client/client"
 	"git.xx.network/elixxir/cli-client/ui"
 	"github.com/spf13/cobra"
@@ -10,10 +11,11 @@ import (
 	"gitlab.com/elixxir/client/broadcast"
 	"gitlab.com/elixxir/crypto/fastRNG"
 	"gitlab.com/xx_network/crypto/csprng"
+	"os"
 )
 
 var bcast = &cobra.Command{
-	Use:   "broadcast",
+	Use:   "broadcast {--new | --load} -o file [-d description -m name | -u username]",
 	Short: "Create or join broadcast channels.",
 	Args:  cobra.NoArgs,
 	Run: func(cmd *cobra.Command, args []string) {
@@ -23,6 +25,15 @@ var bcast = &cobra.Command{
 
 		rng := fastRNG.NewStreamGenerator(12, 1024, csprng.NewSystemRNG)
 		filePath := viper.GetString("open")
+
+		// Print a usage error if neither new nor load flags are set
+		if !viper.IsSet("new") && !viper.IsSet("load") {
+			err := fmt.Errorf("required flag %q or %q not set", "new", "load")
+			cmd.PrintErrln("Error:", err.Error())
+			cmd.Println(cmd.UsageString())
+			fmt.Println(err)
+			os.Exit(1)
+		}
 
 		// Generate new symmetric channel
 		if viper.GetBool("new") {
@@ -131,6 +142,11 @@ func init() {
 		"Creates a new symmetric broadcast channel with the specified name "+
 			"and description.")
 	bindPFlag(bcast.Flags(), "new", bcast.Use)
+	// err := cobra.MarkFlagRequired(bcast.Flags(), "new")
+	// if err != nil {
+	// 	jww.FATAL.Panicf(
+	// 		"Failed to mark flag %q as required: %+v", "new", err)
+	// }
 
 	bcast.Flags().Bool("load", false,
 		"Joins an existing symmetric broadcast channel .")
