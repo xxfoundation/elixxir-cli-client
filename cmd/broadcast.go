@@ -142,11 +142,6 @@ func init() {
 		"Creates a new symmetric broadcast channel with the specified name "+
 			"and description.")
 	bindPFlag(bcast.Flags(), "new", bcast.Use)
-	// err := cobra.MarkFlagRequired(bcast.Flags(), "new")
-	// if err != nil {
-	// 	jww.FATAL.Panicf(
-	// 		"Failed to mark flag %q as required: %+v", "new", err)
-	// }
 
 	bcast.Flags().Bool("load", false,
 		"Joins an existing symmetric broadcast channel .")
