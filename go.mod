@@ -3,6 +3,7 @@ module git.xx.network/elixxir/cli-client
 go 1.17
 
 require (
+	github.com/graph-gophers/graphql-go v1.4.0
 	github.com/jroimartin/gocui v0.5.0
 	github.com/pkg/errors v0.9.1
 	github.com/spf13/cobra v1.4.0

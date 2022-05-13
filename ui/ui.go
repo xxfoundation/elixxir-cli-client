@@ -2,10 +2,12 @@ package ui
 
 import (
 	"fmt"
+	"git.xx.network/elixxir/cli-client/client"
 	"github.com/jroimartin/gocui"
 	"github.com/pkg/errors"
 	jww "github.com/spf13/jwalterweatherman"
 	crypto "gitlab.com/elixxir/crypto/broadcast"
+	"gitlab.com/xx_network/primitives/netTime"
 	"strings"
 	"time"
 )
@@ -25,7 +27,7 @@ var (
 	active  = 0
 )
 
-func MakeUI(payloadChan chan []byte, broadcastFn func(message []byte) error,
+func MakeUI(payloadChan chan client.ReceivedBroadcast, broadcastFn client.BroadcastFn,
 	c *crypto.Channel, username string, maxMessageLen int, asymmetric, sender bool) {
 	g, err := gocui.NewGui(gocui.Output256)
 	if err != nil {
@@ -48,19 +50,43 @@ func MakeUI(payloadChan chan []byte, broadcastFn func(message []byte) error,
 		for {
 			select {
 			case r := <-payloadChan:
+				jww.INFO.Printf("Got broadcast: %+v", r)
 				channelFeedView, err := g.View(channelFeed)
 				if err != nil {
 					jww.ERROR.Printf("Failed to get view %q: %+v", channelFeed, err)
 					continue
 				}
 
-				payloadParts := strings.SplitN(string(r), ":\xb1", 2)
-				username := "\x1b[38;5;255m" + string(payloadParts[0]) + "\x1b[0m \u001B[38;5;245m[received " + time.Now().Format("3:04:05 pm") + "]\u001B[0m"
-				message := "\x1b[38;5;250m" + strings.TrimSpace(payloadParts[1]) + "\x1b[0m"
+				var message string
 
-				str := username + "\n" + message + "\n\n"
+				switch r.Tag {
+				case client.Default:
+					usernameField := "\x1b[38;5;255m" + r.Username + "\x1b[0m"
+					timestampField := "\x1b[38;5;245m[sent " + r.Timestamp.Format("3:04:05 pm") + " / received " + netTime.Now().Format("3:04:05 pm") + "]\x1b[0m"
+					messageField := "\x1b[38;5;250m" + strings.TrimSpace(string(r.Message)) + "\x1b[0m"
 
-				_, err = fmt.Fprintf(channelFeedView, str)
+					message = usernameField + " " + timestampField + "\n" + messageField
+				case client.Join:
+					usernameField := "\x1b[38;5;255m" + r.Username + "\x1b[0m \x1B[38;5;250mhas joined the channel.\x1B[0m"
+					timestampField := "\x1b[38;5;245m[sent " + r.Timestamp.Format("3:04:05 pm") + " / received " + netTime.Now().Format("3:04:05 pm") + "]\x1b[0m"
+
+					message = usernameField + " " + timestampField
+				case client.Exit:
+					usernameField := "\x1b[38;5;255m" + r.Username + "\x1b[0m \x1B[38;5;250mhas left the channel.\x1B[0m"
+					timestampField := "\x1b[38;5;245m[sent " + r.Timestamp.Format("3:04:05 pm") + " / received " + netTime.Now().Format("3:04:05 pm") + "]\x1b[0m"
+
+					message = usernameField + " " + timestampField
+				case client.Admin:
+					usernameField := "\x1b[38;5;160m" + r.Username + " [ADMIN]\x1b[0m"
+					timestampField := "\x1b[38;5;245m[sent " + r.Timestamp.Format("3:04:05 pm") + " / received " + netTime.Now().Format("3:04:05 pm") + "]\x1b[0m"
+					messageField := "\x1b[38;5;124m" + strings.TrimSpace(string(r.Message)) + "\x1b[0m"
+
+					message = usernameField + " " + timestampField + "\n" + messageField
+				}
+
+				message = message + "\n\n"
+
+				_, err = fmt.Fprintf(channelFeedView, message)
 				if err != nil {
 					jww.ERROR.Print(err)
 					continue
@@ -70,6 +96,11 @@ func MakeUI(payloadChan chan []byte, broadcastFn func(message []byte) error,
 			}
 		}
 	}()
+
+	err = broadcastFn(client.Join, netTime.Now(), []byte{})
+	if err != nil {
+		jww.FATAL.Panicf("Failed to send initial join message: %+v", err)
+	}
 
 	if err = g.MainLoop(); err != nil && err != gocui.ErrQuit {
 		jww.FATAL.Panicf("Error in main loop: %+v", err)
@@ -210,7 +241,7 @@ func makeLayout(c *crypto.Channel, username string, maxMessageLen int, asymmetri
 }
 
 // initKeybindings initializes all key bindings for the entire UI.
-func initKeybindings(g *gocui.Gui, broadcastFn func(message []byte) error, maxMessageLen int) error {
+func initKeybindings(g *gocui.Gui, broadcastFn client.BroadcastFn, maxMessageLen int) error {
 	err := g.SetKeybinding("", gocui.KeyTab, gocui.ModNone, nextView)
 	if err != nil {
 		return errors.Errorf(
@@ -266,7 +297,7 @@ func initKeybindings(g *gocui.Gui, broadcastFn func(message []byte) error, maxMe
 			"failed to set key binding for enter: %+v", err)
 	}
 
-	err = g.SetKeybinding("", gocui.KeyCtrlC, gocui.ModNone, quit)
+	err = g.SetKeybinding("", gocui.KeyCtrlC, gocui.ModNone, quitWithMessage(broadcastFn))
 	if err != nil {
 		return errors.Errorf(
 			"failed to set key binding for Ctrl + C: %+v", err)
@@ -356,7 +387,7 @@ func backSpace(_ *gocui.Gui, v *gocui.View) error {
 	return nil
 }
 
-func readBuffs(broadcastFn func(message []byte) error, maxMessageLen int) func(*gocui.Gui, *gocui.View) error {
+func readBuffs(broadcastFn client.BroadcastFn, maxMessageLen int) func(*gocui.Gui, *gocui.View) error {
 	return func(g *gocui.Gui, _ *gocui.View) error {
 		v, err := g.View(messageInput)
 		if err != nil {
@@ -368,7 +399,7 @@ func readBuffs(broadcastFn func(message []byte) error, maxMessageLen int) func(*
 			return nil
 		}
 
-		err = broadcastFn([]byte(buff))
+		err = broadcastFn(client.Default, netTime.Now(), []byte(buff))
 		if err != nil {
 			return err
 		}
@@ -448,6 +479,16 @@ func setCurrentViewOnTop(g *gocui.Gui, name string) (*gocui.View, error) {
 		return nil, err
 	}
 	return g.SetViewOnTop(name)
+}
+
+func quitWithMessage(broadcastFn client.BroadcastFn) func(*gocui.Gui, *gocui.View) error {
+	return func(gui *gocui.Gui, view *gocui.View) error {
+		err := broadcastFn(client.Exit, netTime.Now(), []byte{})
+		if err != nil {
+			jww.ERROR.Printf("Failed to send exit message: %+v", err)
+		}
+		return gocui.ErrQuit
+	}
 }
 
 func quit(*gocui.Gui, *gocui.View) error {

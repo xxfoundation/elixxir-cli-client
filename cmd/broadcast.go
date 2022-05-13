@@ -139,7 +139,7 @@ var bCast = &cobra.Command{
 
 			username := viper.GetString("username")
 
-			var broadcastFn func(message []byte) error
+			var broadcastFn client.BroadcastFn
 			var maxPayloadSize int
 			if isAsymmetric {
 				broadcastFn, maxPayloadSize = client.AsymmetricBroadcastFn(

@@ -77,7 +77,10 @@ func (m *mockCmix) Send(recipient *id.ID, fingerprint format.Fingerprint,
 	m.handler.Lock()
 	defer m.handler.Unlock()
 	for _, p := range m.handler.processorMap[*recipient][service.Tag] {
-		p.Process(msg, receptionID.EphemeralIdentity{}, rounds.Round{})
+		p.Process(msg, receptionID.EphemeralIdentity{
+			EphId:  ephemeral.Id{0},
+			Source: &id.ID{0},
+		}, rounds.Round{})
 	}
 
 	return 0, ephemeral.Id{}, nil
