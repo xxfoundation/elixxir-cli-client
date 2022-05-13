@@ -1,20 +1,21 @@
 package cmd
 
 import (
-	"fmt"
 	"git.xx.network/elixxir/cli-client/client"
 	"git.xx.network/elixxir/cli-client/ui"
+	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	jww "github.com/spf13/jwalterweatherman"
 	"github.com/spf13/viper"
 	"gitlab.com/elixxir/client/api"
 	"gitlab.com/elixxir/client/broadcast"
+	crypto "gitlab.com/elixxir/crypto/broadcast"
 	"gitlab.com/elixxir/crypto/fastRNG"
 	"gitlab.com/xx_network/crypto/csprng"
-	"os"
+	"gitlab.com/xx_network/crypto/signature/rsa"
 )
 
-var bcast = &cobra.Command{
+var bCast = &cobra.Command{
 	Use:   "broadcast {--new | --load} -o file [-d description -m name | -u username]",
 	Short: "Create or join broadcast channels.",
 	Args:  cobra.NoArgs,
@@ -23,46 +24,49 @@ var bcast = &cobra.Command{
 		initLog(viper.GetString("logPath"), viper.GetInt("logLevel"))
 		jww.INFO.Printf(Version())
 
-		rng := fastRNG.NewStreamGenerator(12, 1024, csprng.NewSystemRNG)
+		streamGen := fastRNG.NewStreamGenerator(12, 1024, csprng.NewSystemRNG)
 		filePath := viper.GetString("open")
 
 		// Print a usage error if neither new nor load flags are set
 		if !viper.IsSet("new") && !viper.IsSet("load") {
-			err := fmt.Errorf("required flag %q or %q not set", "new", "load")
-			cmd.PrintErrln("Error:", err.Error())
-			cmd.Println(cmd.UsageString())
-			fmt.Println(err)
-			os.Exit(1)
+			err := errors.Errorf("required flag %q or %q not set", "new", "load")
+			printUsageError(cmd, err)
 		}
 
-		// Generate new symmetric channel
+		// Generate new channel
 		if viper.GetBool("new") {
 			name := viper.GetString("name")
 			description := viper.GetString("description")
 
-			// Create and save new symmetric channel if no username is supplied
-			symChannel, err := client.NewSymmetric(name, description, rng)
+			// Create and save new channel if no username is supplied
+			rng := streamGen.GetStream()
+			channel, rsaPrivKey, err := crypto.NewChannel(name, description, rng)
 			if err != nil {
-				jww.FATAL.Panicf(
-					"Could not make new symmetric channel: %+v", err)
+				jww.FATAL.Panicf("Could not make new channel: %+v", err)
 			}
+			rng.Close()
 
 			jww.INFO.Printf(
-				"Generated new symmetric channel %q: %+v", name, symChannel)
+				"Generated new channel %q: %+v", name, channel)
 
-			err = client.WriteSymmetric(filePath, symChannel)
+			err = client.WriteChannel(filePath, channel)
 			if err != nil {
-				jww.FATAL.Panicf(
-					"Could not write symmetric channel to file: %+v", err)
+				jww.FATAL.Panicf("Could not write channel to file: %+v", err)
 			}
 
-			jww.INFO.Printf(
-				"Saved new symmetric channel %q to file %q.", name, filePath)
+			if viper.GetBool("asymmetric") {
+				err = client.WriteRsaPrivateKey(
+					viper.GetString("key"), name, rsaPrivKey)
+				if err != nil {
+					jww.FATAL.Panicf(
+						"Could not write RSA private key to file: %+v", err)
+				}
+			}
 
 			return
 		}
 
-		// Join existing symmetric channel
+		// Join existing channel
 		if viper.GetBool("load") {
 
 			// Initialise a new client
@@ -87,19 +91,42 @@ var bcast = &cobra.Command{
 				jww.INFO.Printf("Initialised client.")
 			}
 
-			// Load symmetric channel from file
-			symChannel, err := client.LoadSymmetricChannel(filePath)
+			isAsymmetric := viper.GetBool("asymmetric")
+
+			// Load channel from file
+			channel, err := client.LoadChannel(filePath)
 			if err != nil {
-				jww.FATAL.Panicf(
-					"Could not load symmetric channel from file: %+v", err)
+				jww.FATAL.Panicf("Could not load channel from file: %+v", err)
 			}
-			jww.DEBUG.Printf("Loaded symmetric channel %q from file: %+v",
-				symChannel.Name, symChannel)
+
+			// Load RSA private key from file
+			var privateKey *rsa.PrivateKey
+			if isAsymmetric {
+				privateKey, err = client.ReadRsaPrivateKey(
+					viper.GetString("key"), channel.Name)
+				if err != nil {
+					jww.INFO.Printf(
+						"Joining asymmetric channel as listener because the "+
+							"RSA private key could not be loaded from file: %s",
+						err.Error())
+				}
+			}
 
 			cb, cbChan := client.ReceptionCallback()
 
-			symClient := broadcast.NewSymmetricClient(*symChannel, cb,
-				broadcastClient, rng)
+			var params broadcast.Param
+			if isAsymmetric {
+				params.Method = broadcast.Asymmetric
+			} else {
+				params.Method = broadcast.Symmetric
+			}
+
+			bCastClient, err := broadcast.NewBroadcastChannel(
+				*channel, cb, broadcastClient, streamGen, params)
+			if err != nil {
+				jww.FATAL.Panicf(
+					"Failed to start new broadcast client: %+v", err)
+			}
 
 			// Connect to the network
 			if !viper.GetBool("test") {
@@ -111,18 +138,27 @@ var bcast = &cobra.Command{
 			}
 
 			username := viper.GetString("username")
-			broadcastFn, maxPayloadSize := client.BroadcastFn(
-				symClient, username, broadcastClient)
 
-			ui.MakeUI(cbChan, broadcastFn, symChannel.Name, username,
-				symChannel.Description, symChannel.ReceptionID, maxPayloadSize)
+			var broadcastFn func(message []byte) error
+			var maxPayloadSize int
+			if isAsymmetric {
+				broadcastFn, maxPayloadSize = client.AsymmetricBroadcastFn(
+					bCastClient, username, privateKey)
+			} else {
+				broadcastFn, maxPayloadSize = client.SymmetricBroadcastFn(
+					bCastClient, username)
+			}
+
+			ui.MakeUI(cbChan, broadcastFn, channel, username, maxPayloadSize,
+				isAsymmetric, privateKey != nil)
 
 			if !viper.GetBool("test") {
 				// Stop network follower
 				if cMixClient != nil {
 					err := cMixClient.StopNetworkFollower()
 					if err != nil {
-						jww.WARN.Printf("Failed to stop network follower: %+v", err)
+						jww.WARN.Printf(
+							"Failed to stop network follower: %+v", err)
 					}
 				}
 			}
@@ -133,34 +169,47 @@ var bcast = &cobra.Command{
 // init is the initialization function for Cobra which defines commands and
 // flags.
 func init() {
-	bcast.Flags().Bool("test", false,
+	bCast.Flags().Bool("test", false,
 		"Skips creating a client and connecting to network so that the UI "+
 			"can be tested on its own.")
-	bindPFlag(bcast.Flags(), "test", bcast.Use)
+	bindPFlag(bCast.Flags(), "test", bCast.Use)
 
-	bcast.Flags().Bool("new", false,
-		"Creates a new symmetric broadcast channel with the specified name "+
-			"and description.")
-	bindPFlag(bcast.Flags(), "new", bcast.Use)
+	bCast.Flags().Bool("new", false,
+		"Creates a new broadcast channel with the specified name and "+
+			"description.")
+	bindPFlag(bCast.Flags(), "new", bCast.Use)
 
-	bcast.Flags().Bool("load", false,
-		"Joins an existing symmetric broadcast channel .")
-	bindPFlag(bcast.Flags(), "load", bcast.Use)
+	bCast.Flags().Bool("load", false,
+		"Joins an existing broadcast channel.")
+	bindPFlag(bCast.Flags(), "load", bCast.Use)
 
-	bcast.Flags().StringP("name", "m", "",
+	bCast.Flags().BoolP("symmetric", "s", true,
+		"Creates a symmetric broadcast channel.")
+	bindPFlag(bCast.Flags(), "symmetric", bCast.Use)
+
+	bCast.Flags().BoolP("asymmetric", "a", false,
+		"Creates an asymmetric broadcast channel.")
+	bindPFlag(bCast.Flags(), "asymmetric", bCast.Use)
+
+	bCast.Flags().StringP("name", "n", "",
 		"The name of the channel.")
-	bindPFlag(bcast.Flags(), "name", bcast.Use)
+	bindPFlag(bCast.Flags(), "name", bCast.Use)
 
-	bcast.Flags().StringP("description", "d", "",
+	bCast.Flags().StringP("description", "d", "",
 		"Description of the channel.")
-	bindPFlag(bcast.Flags(), "description", bcast.Use)
+	bindPFlag(bCast.Flags(), "description", bCast.Use)
 
-	bcast.Flags().StringP("open", "o", "",
+	bCast.Flags().StringP("open", "o", "",
 		"Location to output/open channel information file. Prints to stdout "+
-			"if not path is supplied.")
-	bindPFlag(bcast.Flags(), "open", bcast.Use)
+			"if no path is supplied.")
+	bindPFlag(bCast.Flags(), "open", bCast.Use)
 
-	bcast.Flags().StringP("username", "u", "",
+	bCast.Flags().StringP("key", "k", "",
+		"Location to save/load the RSA private key PEM file. Uses the name of "+
+			"the channel if no path is supplied.")
+	bindPFlag(bCast.Flags(), "key", bCast.Use)
+
+	bCast.Flags().StringP("username", "u", "",
 		"Join the channel with this username.")
-	bindPFlag(bcast.Flags(), "username", bcast.Use)
+	bindPFlag(bCast.Flags(), "username", bCast.Use)
 }

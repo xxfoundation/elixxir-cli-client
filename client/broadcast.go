@@ -9,53 +9,17 @@ import (
 	"gitlab.com/elixxir/client/cmix/identity/receptionID"
 	"gitlab.com/elixxir/client/cmix/rounds"
 	crypto "gitlab.com/elixxir/crypto/broadcast"
-	cMixCrypto "gitlab.com/elixxir/crypto/cmix"
-	"gitlab.com/elixxir/crypto/fastRNG"
 	"gitlab.com/xx_network/crypto/signature/rsa"
-	"gitlab.com/xx_network/primitives/id"
 	"gitlab.com/xx_network/primitives/utils"
+	"regexp"
 )
 
-// NewSymmetric generates a new crypto.Symmetric channel with the given name and
-// description. The reception ID and, salt, and RSA key are randomly generated.
-func NewSymmetric(name, description string,
-	rngGen *fastRNG.StreamGenerator) (crypto.Symmetric, error) {
-	if name == "" {
-		return crypto.Symmetric{}, errors.New("name cannot be empty")
-	} else if description == "" {
-		return crypto.Symmetric{}, errors.New("description cannot be empty")
-	}
-
-	rng := rngGen.GetStream()
-	defer rng.Close()
-
-	rsaPrivKey, err := rsa.GenerateKey(rng, 512)
-	if err != nil {
-		return crypto.Symmetric{}, errors.Errorf(
-			"failed to generate RSA key for new symmetric channel: %+v", err)
-	}
-
-	rid, err := id.NewRandomID(rng, id.User)
-	if err != nil {
-		return crypto.Symmetric{}, errors.Errorf(
-			"failed to generate reception ID for new symmetric channel: %+v", err)
-	}
-
-	return crypto.Symmetric{
-		ReceptionID: rid,
-		Name:        name,
-		Description: description,
-		Salt:        cMixCrypto.NewSalt(rng, 32),
-		RsaPubKey:   rsaPrivKey.GetPublic(),
-	}, nil
-}
-
-// WriteSymmetric serialises and write the symmetric channel to the given file
-// path. If no path is supplied, it is printed to stdout.
-func WriteSymmetric(path string, s crypto.Symmetric) error {
+// WriteChannel serialises and write the channel to the given file path. If no
+// path is supplied, it is printed to stdout.
+func WriteChannel(path string, s *crypto.Channel) error {
 	data, err := s.Marshal()
 	if err != nil {
-		return errors.Errorf("failed to marshal symmetric channel: %+v", err)
+		return errors.Errorf("failed to marshal channel: %+v", err)
 	}
 
 	if path != "" {
@@ -70,25 +34,75 @@ func WriteSymmetric(path string, s crypto.Symmetric) error {
 		}
 	}
 
+	jww.INFO.Printf("Saved new channel %q to file %q.", s.Name, path)
+
 	return nil
 }
 
-// LoadSymmetricChannel loads the data from the given file path and deserializes
-// it into a symmetric channel.
-func LoadSymmetricChannel(path string) (*crypto.Symmetric, error) {
+// LoadChannel loads the data from the given file path and deserializes it into
+// a channel.
+func LoadChannel(path string) (*crypto.Channel, error) {
 	data, err := utils.ReadFile(path)
 	if err != nil {
 		return nil, errors.Errorf(
-			"failed to read symmetric channel data from file: %+v", err)
+			"failed to read channel data from file: %+v", err)
 	}
 
-	s, err := crypto.UnmarshalSymmetric(data)
+	c, err := crypto.UnmarshalChannel(data)
 	if err != nil {
 		return nil, errors.Errorf(
-			"failed to unmarshal symmetric channel: %+v", err)
+			"failed to unmarshal channel: %+v", err)
 	}
 
-	return s, nil
+	jww.DEBUG.Printf(
+		"Loaded channel %q from file: %+v", c.Name, c)
+
+	return c, nil
+}
+
+// WriteRsaPrivateKey writes the RSA private key PEM to the given file path. If
+// not file path is supplied, the channel name is used instead.
+func WriteRsaPrivateKey(path, channelName string, pk *rsa.PrivateKey) error {
+	if path == "" {
+		match := regexp.MustCompile("\\s")
+		path = match.ReplaceAllString(channelName, "") + "-privateKey.pem"
+	}
+
+	pem := rsa.CreatePrivateKeyPem(pk)
+
+	err := utils.WriteFileDef(path, pem)
+	if err != nil {
+		return errors.Errorf("could not write file: %+v", err)
+	}
+
+	jww.INFO.Printf("Saved new channel RSA private key to file %q.", path)
+
+	return nil
+}
+
+// ReadRsaPrivateKey reads the RSA private key PEM from the given file path. If
+// not file path is supplied, the channel name is used instead.
+func ReadRsaPrivateKey(path, channelName string) (*rsa.PrivateKey, error) {
+	if path == "" {
+		match := regexp.MustCompile("\\s")
+		path = match.ReplaceAllString(channelName, "") + "-privateKey.pem"
+	}
+
+	data, err := utils.ReadFile(path)
+	if err != nil {
+		return nil, errors.Errorf(
+			"failed to read RSA private key data from file: %+v", err)
+	}
+
+	pk, err := rsa.LoadPrivateKeyFromPem(data)
+	if err != nil {
+		return nil, errors.Errorf(
+			"could not load RSA private key from PEM: %+v", err)
+	}
+
+	jww.INFO.Printf("Loaded channel RSA private key to file %q.", path)
+
+	return pk, nil
 }
 
 func ReceptionCallback() (broadcast.ListenerFunc, chan []byte) {
@@ -106,34 +120,69 @@ func ReceptionCallback() (broadcast.ListenerFunc, chan []byte) {
 	return cb, cbChan
 }
 
-func BroadcastFn(s broadcast.Symmetric, username string, net broadcast.Client) (
+func SymmetricBroadcastFn(c broadcast.Channel, username string) (
 	func(message []byte) error, int) {
 	usernameTag := username + ":\xb1"
+
+	// Get the maximum payload size; dependent on symmetric or asymmetric
 	maxPayloadSize := broadcast.MaxSizedBroadcastPayloadSize(
-		net.GetMaxMessageLength()) - len(usernameTag)
+		c.MaxSymmetricPayloadSize()) - len(usernameTag)
+
 	broadcastFn := func(message []byte) error {
 		payload, err := broadcast.NewSizedBroadcast(
-			net.GetMaxMessageLength(),
-			[]byte(usernameTag+string(message)))
-		if err != nil {
-			return errors.Errorf("failed to make new sized "+
-				"broadcast message: %+v", err)
-		}
-
-		params := cmix.GetDefaultCMIXParams()
-		params.DebugTag = "SymmChannel"
-
-		round, ephID, err := s.Broadcast(payload, params)
+			c.MaxSymmetricPayloadSize(), []byte(usernameTag+string(message)))
 		if err != nil {
 			return errors.Errorf(
-				"failed to broadcast payload: %+v", err)
+				"failed to make new sized broadcast message: %+v", err)
+		}
+
+		cMixParams := cmix.GetDefaultCMIXParams()
+
+		round, ephID, err := c.Broadcast(payload, cMixParams)
+		if err != nil {
+			return errors.Errorf(
+				"failed to broadcast symmetric payload: %+v", err)
 		}
 
 		jww.INFO.Printf(
-			"Broadcasted payload on round %s to ephemeral ID %d",
+			"Broadcasted symmetric payload on round %s to ephemeral ID %d",
 			round.String(), ephID.Int64())
 
 		return nil
 	}
+
+	return broadcastFn, maxPayloadSize
+}
+
+func AsymmetricBroadcastFn(c broadcast.Channel, username string,
+	pk *rsa.PrivateKey) (func(message []byte) error, int) {
+	usernameTag := username + ":\xb1"
+
+	// Get the maximum payload size; dependent on symmetric or asymmetric
+	maxPayloadSize := broadcast.MaxSizedBroadcastPayloadSize(
+		c.MaxAsymmetricPayloadSize()) - len(usernameTag)
+
+	broadcastFn := func(message []byte) error {
+		payload, err := broadcast.NewSizedBroadcast(
+			c.MaxAsymmetricPayloadSize(), []byte(usernameTag+string(message)))
+		if err != nil {
+			return errors.Errorf(
+				"failed to make new sized broadcast message: %+v", err)
+		}
+
+		cMixParams := cmix.GetDefaultCMIXParams()
+		round, ephID, err := c.BroadcastAsymmetric(pk, payload, cMixParams)
+		if err != nil {
+			return errors.Errorf(
+				"failed to broadcast asymmetric payload: %+v", err)
+		}
+
+		jww.INFO.Printf(
+			"Broadcasted asymmetric payload on round %s to ephemeral ID %d",
+			round.String(), ephID.Int64())
+
+		return nil
+	}
+
 	return broadcastFn, maxPayloadSize
 }

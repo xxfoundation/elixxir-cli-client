@@ -5,7 +5,7 @@ import (
 	"github.com/jroimartin/gocui"
 	"github.com/pkg/errors"
 	jww "github.com/spf13/jwalterweatherman"
-	"gitlab.com/xx_network/primitives/id"
+	crypto "gitlab.com/elixxir/crypto/broadcast"
 	"strings"
 	"time"
 )
@@ -26,8 +26,7 @@ var (
 )
 
 func MakeUI(payloadChan chan []byte, broadcastFn func(message []byte) error,
-	channelName, username, description string, receptionID *id.ID,
-	maxMessageLen int) {
+	c *crypto.Channel, username string, maxMessageLen int, asymmetric, sender bool) {
 	g, err := gocui.NewGui(gocui.Output256)
 	if err != nil {
 		jww.FATAL.Panicf("Failed to make new GUI: %+v", err)
@@ -39,7 +38,7 @@ func MakeUI(payloadChan chan []byte, broadcastFn func(message []byte) error,
 	g.SelFgColor = gocui.ColorGreen
 	g.Highlight = true
 
-	g.SetManagerFunc(makeLayout(channelName, username, description, receptionID, maxMessageLen))
+	g.SetManagerFunc(makeLayout(c, username, maxMessageLen, asymmetric, sender))
 
 	err = initKeybindings(g, broadcastFn, maxMessageLen)
 	if err != nil {
@@ -72,59 +71,32 @@ func MakeUI(payloadChan chan []byte, broadcastFn func(message []byte) error,
 		}
 	}()
 
-	go func() {
-		ticker := time.NewTicker(100 * time.Millisecond)
-		for {
-			select {
-			case <-ticker.C:
-				g.Update(func(gui *gocui.Gui) error {
-					messageInputView, err := g.View(messageInput)
-					if err != nil {
-						return errors.Errorf("Failed to get view: %+v", err)
-					}
-					messageCountView, err := g.View(messageCount)
-					if err != nil {
-						return errors.Errorf("Failed to get view: %+v", err)
-					}
-
-					buff := strings.TrimSpace(messageInputView.Buffer())
-					n := len(buff)
-
-					var color string
-					if n >= maxMessageLen {
-						messageInputView.Editable = false
-						color = "\x1b[0;31m"
-					} else {
-						messageInputView.Editable = true
-					}
-
-					messageCountView.Clear()
-					_, err = fmt.Fprintf(messageCountView, color+charCountFmt+"\x1b[0m", n, maxMessageLen)
-					if err != nil {
-						return errors.Errorf("Failed to write to view: %+v", err)
-					}
-					return nil
-				})
-			}
-		}
-	}()
-
 	if err = g.MainLoop(); err != nil && err != gocui.ErrQuit {
 		jww.FATAL.Panicf("Error in main loop: %+v", err)
 	}
 }
 
-func makeLayout(channelName, username, description string, receptionID *id.ID, maxMessageLen int) func(g *gocui.Gui) error {
+func makeLayout(c *crypto.Channel, username string, maxMessageLen int, asymmetric, sender bool) func(g *gocui.Gui) error {
 	return func(g *gocui.Gui) error {
 		maxX, maxY := g.Size()
 
-		if v, err := g.SetView(titleBox, maxX-25, 0, maxX-1, maxY-7); err != nil {
+		topRowY1Offset := 1
+		if !asymmetric || (asymmetric && sender) {
+			topRowY1Offset = 7
+		}
+
+		if v, err := g.SetView(titleBox, maxX-25, 0, maxX-1, maxY-topRowY1Offset); err != nil {
 			if err != gocui.ErrUnknownView {
 				return err
 			}
 			v.Title = " xx Channel Chat "
 			v.Wrap = true
 			v.Autoscroll = true
+
+			chanType := "Symmetric"
+			if asymmetric {
+				chanType = "Asymmetric"
+			}
 
 			_, err = fmt.Fprintf(v, "Controls:\n"+
 				"\u001B[38;5;250m"+
@@ -137,61 +109,102 @@ func makeLayout(channelName, username, description string, receptionID *id.ID, m
 				" F5      Message field\n\n"+
 				"\x1b[0m"+
 				"Channel Info:\n"+
-				"\x1b[38;5;252mName:\n\x1b[38;5;248m"+channelName+"\x1b[0m\n\n"+
-				"\x1b[38;5;252mDescription:\n\x1b[38;5;248m"+description+"\x1b[0m\n\n"+
-				"\x1b[38;5;252mID:\n\x1b[38;5;248m"+receptionID.String()+"\x1b[0m")
+				"\x1b[38;5;252mName:\n\x1b[38;5;248m"+c.Name+"\x1b[0m\n\n"+
+				"\x1b[38;5;252mDescription:\n\x1b[38;5;248m"+c.Description+"\x1b[0m\n\n"+
+				"\x1b[38;5;252mType:\n\x1b[38;5;248m"+chanType+"\x1b[0m\n\n"+
+				"\x1b[38;5;252mID:\n\x1b[38;5;248m"+c.ReceptionID.String()+"\x1b[0m")
 			if err != nil {
 				return err
 			}
 		}
 
-		if v, err := g.SetView(channelFeed, 0, 0, maxX-26, maxY-7); err != nil {
+		if v, err := g.SetView(channelFeed, 0, 0, maxX-26, maxY-topRowY1Offset); err != nil {
 			if err != gocui.ErrUnknownView {
 				return err
 			}
-			v.Title = " Channel Feed for \"" + channelName + "\" [F4] "
+			v.Title = " Channel Feed for \"" + c.Name + "\" [F4] "
 			v.Wrap = true
 			v.Autoscroll = true
 		}
 
-		if v, err := g.SetView(messageInput, 0, maxY-6, maxX-9, maxY-1); err != nil {
-			if err != gocui.ErrUnknownView {
-				return err
-			}
-			v.Title = " Sending Message as \"" + username + "\" [F5] "
-			v.Editable = true
-			v.Wrap = true
+		if !asymmetric || (asymmetric && sender) {
+			if v, err := g.SetView(messageInput, 0, maxY-6, maxX-9, maxY-1); err != nil {
+				if err != gocui.ErrUnknownView {
+					return err
+				}
+				v.Title = " Sending Message as \"" + username + "\" [F5] "
+				v.Editable = true
+				v.Wrap = true
 
-			if _, err = g.SetCurrentView(messageInput); err != nil {
-				return err
+				if _, err = g.SetCurrentView(messageInput); err != nil {
+					return err
+				}
+			}
+
+			if v, err := g.SetView(messageCount, maxX-8, maxY-6, maxX-1, maxY-3); err != nil {
+				if err != gocui.ErrUnknownView {
+					return err
+				}
+				v.Frame = false
+				v.Wrap = true
+
+				_, err = fmt.Fprintf(v, charCountFmt, 0, maxMessageLen)
+				if err != nil {
+					return err
+				}
+
+				go func() {
+					ticker := time.NewTicker(100 * time.Millisecond)
+					for {
+						select {
+						case <-ticker.C:
+							g.Update(func(gui *gocui.Gui) error {
+								messageInputView, err := g.View(messageInput)
+								if err != nil {
+									return errors.Errorf("Failed to get view: %+v", err)
+								}
+								messageCountView, err := g.View(messageCount)
+								if err != nil {
+									return errors.Errorf("Failed to get view: %+v", err)
+								}
+
+								buff := strings.TrimSpace(messageInputView.Buffer())
+								n := len(buff)
+
+								var color string
+								if n >= maxMessageLen {
+									messageInputView.Editable = false
+									color = "\x1b[0;31m"
+								} else {
+									messageInputView.Editable = true
+								}
+
+								messageCountView.Clear()
+								_, err = fmt.Fprintf(messageCountView, color+charCountFmt+"\x1b[0m", n, maxMessageLen)
+								if err != nil {
+									return errors.Errorf("Failed to write to view: %+v", err)
+								}
+								return nil
+							})
+						}
+					}
+				}()
+			}
+
+			if v, err := g.SetView(sendButton, maxX-8, maxY-3, maxX-1, maxY-1); err != nil {
+				if err != gocui.ErrUnknownView {
+					return err
+				}
+
+				v.Highlight = true
+
+				_, err = v.Write([]byte("\n Send "))
+				if err != nil {
+					return err
+				}
 			}
 		}
 
-		if v, err := g.SetView(messageCount, maxX-8, maxY-6, maxX-1, maxY-3); err != nil {
-			if err != gocui.ErrUnknownView {
-				return err
-			}
-			v.Frame = false
-			v.Wrap = true
-
-			_, err = fmt.Fprintf(v, charCountFmt, 0, maxMessageLen)
-			if err != nil {
-				return err
-			}
-		}
-
-		if v, err := g.SetView(sendButton, maxX-8, maxY-3, maxX-1, maxY-1); err != nil {
-			if err != gocui.ErrUnknownView {
-				return err
-			}
-
-			v.Highlight = true
-
-			_, err = v.Write([]byte("\n Send "))
-			if err != nil {
-				return err
-			}
-		}
 		return nil
 	}
 }
@@ -385,7 +398,7 @@ func readBuffs(broadcastFn func(message []byte) error, maxMessageLen int) func(*
 	}
 }
 
-func addLine(g *gocui.Gui, v *gocui.View) error {
+func addLine(_ *gocui.Gui, v *gocui.View) error {
 	v.EditNewLine()
 	return nil
 }

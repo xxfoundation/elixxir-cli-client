@@ -19,8 +19,8 @@ build:
 update_release:
 	GOFLAGS="" go get -d gitlab.com/xx_network/primitives@release
 	GOFLAGS="" go get -d gitlab.com/xx_network/crypto@release
-	GOFLAGS="" go get -d gitlab.com/elixxir/crypto@symmetricBroadcst
-	GOFLAGS="" go get -d gitlab.com/elixxir/client@symmetricBroadcst
+	GOFLAGS="" go get -d gitlab.com/elixxir/crypto@xx-3911/superchannels
+	GOFLAGS="" go get -d gitlab.com/elixxir/client@xx-3911/superchannels
 
 update_master:
 	GOFLAGS="" go get gitlab.com/xx_network/crypto@master

@@ -133,7 +133,7 @@ func init() {
 		"Verbosity level for log printing (2+ = Trace, 1 = Debug, 0 = Info).")
 	bindPFlag(rootCmd.PersistentFlags(), "logLevel", rootCmd.Use)
 
-	rootCmd.PersistentFlags().StringP("session", "s", "session",
+	rootCmd.PersistentFlags().String("session", "session",
 		"Sets the initial storage directory for client session data.")
 	bindPFlag(rootCmd.PersistentFlags(), "session", rootCmd.Use)
 
@@ -141,7 +141,7 @@ func init() {
 		"Password to the session file.")
 	bindPFlag(rootCmd.PersistentFlags(), "password", rootCmd.Use)
 
-	rootCmd.PersistentFlags().StringP("ndf", "n", "ndf.json",
+	rootCmd.PersistentFlags().String("ndf", "ndf.json",
 		"Path to the network definition JSON file.")
 	bindPFlag(rootCmd.PersistentFlags(), "ndf", rootCmd.Use)
 
@@ -149,7 +149,7 @@ func init() {
 		"Duration to wait for messages to arrive.")
 	bindPFlag(rootCmd.PersistentFlags(), "waitTimeout", rootCmd.Use)
 
-	rootCmd.AddCommand(bcast)
+	rootCmd.AddCommand(bCast)
 }
 
 // bindPFlag binds the key to a pflag.Flag. Panics on error.
@@ -159,4 +159,13 @@ func bindPFlag(flagSet *pflag.FlagSet, key, use string) {
 		jww.FATAL.Panicf(
 			"Failed to bind key %q to a pflag on %s: %+v", key, use, err)
 	}
+}
+
+// printUsageError prints the provided error with the commands' usage/help
+// message and exits.
+func printUsageError(cmd *cobra.Command, err error) {
+	cmd.PrintErrln("Error:", err.Error())
+	cmd.Println(cmd.UsageString())
+	fmt.Println(err)
+	os.Exit(1)
 }
