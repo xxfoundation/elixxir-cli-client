@@ -133,7 +133,7 @@ func init() {
 		"Verbosity level for log printing (2+ = Trace, 1 = Debug, 0 = Info).")
 	bindPFlag(rootCmd.PersistentFlags(), "logLevel", rootCmd.Use)
 
-	rootCmd.PersistentFlags().String("session", "session",
+	rootCmd.PersistentFlags().StringP("session", "s", "session",
 		"Sets the initial storage directory for client session data.")
 	bindPFlag(rootCmd.PersistentFlags(), "session", rootCmd.Use)
 
