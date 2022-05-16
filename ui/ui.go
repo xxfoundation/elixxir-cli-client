@@ -78,9 +78,9 @@ func MakeUI(payloadChan chan client.ReceivedBroadcast,
 
 					message = usernameField + " " + timestampField
 				case client.Admin:
-					usernameField := "\x1b[38;5;160m" + r.Username + " [ADMIN]\x1b[0m"
+					usernameField := "\x1b[48;5;160m[ADMIN]\x1b[0m"
 					timestampField := "\x1b[38;5;245m[sent " + r.Timestamp.Format("3:04:05 pm") + " / received " + netTime.Now().Format("3:04:05 pm") + "]\x1b[0m"
-					messageField := "\x1b[38;5;124m" + strings.TrimSpace(string(r.Message)) + "\x1b[0m"
+					messageField := "\x1b[38;5;166m" + strings.TrimSpace(string(r.Message)) + "\x1b[0m"
 
 					message = usernameField + " " + timestampField + "\n" + messageField
 				}

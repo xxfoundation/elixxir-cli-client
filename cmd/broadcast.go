@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"fmt"
 	"git.xx.network/elixxir/cli-client/client"
 	"git.xx.network/elixxir/cli-client/ui"
 	"github.com/pkg/errors"
@@ -13,7 +14,22 @@ import (
 	"gitlab.com/elixxir/crypto/fastRNG"
 	"gitlab.com/xx_network/crypto/csprng"
 	"gitlab.com/xx_network/primitives/netTime"
+	"time"
 )
+
+func loadingDots(quit chan struct{}) {
+	ticker := time.NewTicker(500 * time.Millisecond)
+	for {
+		select {
+		case <-quit:
+			fmt.Print("\n")
+			ticker.Stop()
+			return
+		case <-ticker.C:
+			fmt.Print(".")
+		}
+	}
+}
 
 var bCast = &cobra.Command{
 	Use:   "broadcast {--new | --load} -o file [-d description -m name | -u username]",
@@ -66,6 +82,9 @@ var bCast = &cobra.Command{
 
 		// Join existing channel
 		if viper.GetBool("load") {
+
+			quit := make(chan struct{})
+			go loadingDots(quit)
 
 			// Initialise a new client
 			var cMixClient *api.Client
@@ -141,13 +160,15 @@ var bCast = &cobra.Command{
 					asymClient, username, privateKey)
 
 				err = asymBroadcastFn(client.Admin, netTime.Now(), []byte(message))
+				quit <- struct{}{}
 				if err != nil {
 					jww.FATAL.Panicf("Failed to send message as admin on "+
 						"asymmetric channel: %+v", err)
 				}
+			} else {
+				quit <- struct{}{}
+				ui.MakeUI(cbChan, symBroadcastFn, channel, username, maxPayloadSize)
 			}
-
-			ui.MakeUI(cbChan, symBroadcastFn, channel, username, maxPayloadSize)
 
 			if !viper.GetBool("test") {
 				// Stop network follower
