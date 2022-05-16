@@ -161,6 +161,15 @@ func bindPFlag(flagSet *pflag.FlagSet, key, use string) {
 	}
 }
 
+// hidePFlag hides the key to a pflag.Flag in the help text. Panics on error.
+func hidePFlag(flagSet *pflag.FlagSet, key, use string) {
+	err := flagSet.MarkHidden(key)
+	if err != nil {
+		jww.FATAL.Panicf(
+			"Failed to hide key %q to a pflag on %s: %+v", key, use, err)
+	}
+}
+
 // printUsageError prints the provided error with the commands' usage/help
 // message and exits.
 func printUsageError(cmd *cobra.Command, err error) {

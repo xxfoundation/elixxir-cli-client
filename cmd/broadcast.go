@@ -12,7 +12,7 @@ import (
 	crypto "gitlab.com/elixxir/crypto/broadcast"
 	"gitlab.com/elixxir/crypto/fastRNG"
 	"gitlab.com/xx_network/crypto/csprng"
-	"gitlab.com/xx_network/crypto/signature/rsa"
+	"gitlab.com/xx_network/primitives/netTime"
 )
 
 var bCast = &cobra.Command{
@@ -29,8 +29,8 @@ var bCast = &cobra.Command{
 
 		// Print a usage error if neither new nor load flags are set
 		if !viper.IsSet("new") && !viper.IsSet("load") {
-			err := errors.Errorf("required flag %q or %q not set", "new", "load")
-			printUsageError(cmd, err)
+			printUsageError(cmd,
+				errors.Errorf("required flag %q or %q not set", "new", "load"))
 		}
 
 		// Generate new channel
@@ -54,13 +54,11 @@ var bCast = &cobra.Command{
 				jww.FATAL.Panicf("Could not write channel to file: %+v", err)
 			}
 
-			if viper.GetBool("asymmetric") {
-				err = client.WriteRsaPrivateKey(
-					viper.GetString("key"), name, rsaPrivKey)
-				if err != nil {
-					jww.FATAL.Panicf(
-						"Could not write RSA private key to file: %+v", err)
-				}
+			err = client.WriteRsaPrivateKey(
+				viper.GetString("key"), name, rsaPrivKey)
+			if err != nil {
+				jww.FATAL.Panicf(
+					"Could not write RSA private key to file: %+v", err)
 			}
 
 			return
@@ -91,41 +89,28 @@ var bCast = &cobra.Command{
 				jww.INFO.Printf("Initialised client.")
 			}
 
-			isAsymmetric := viper.GetBool("asymmetric")
-
 			// Load channel from file
 			channel, err := client.LoadChannel(filePath)
 			if err != nil {
 				jww.FATAL.Panicf("Could not load channel from file: %+v", err)
 			}
 
-			// Load RSA private key from file
-			var privateKey *rsa.PrivateKey
-			if isAsymmetric {
-				privateKey, err = client.ReadRsaPrivateKey(
-					viper.GetString("key"), channel.Name)
-				if err != nil {
-					jww.INFO.Printf(
-						"Joining asymmetric channel as listener because the "+
-							"RSA private key could not be loaded from file: %s",
-						err.Error())
-				}
-			}
-
 			cb, cbChan := client.ReceptionCallback()
 
-			var params broadcast.Param
-			if isAsymmetric {
-				params.Method = broadcast.Asymmetric
-			} else {
-				params.Method = broadcast.Symmetric
-			}
-
-			bCastClient, err := broadcast.NewBroadcastChannel(
-				*channel, cb, broadcastClient, streamGen, params)
+			symParams := broadcast.Param{Method: broadcast.Symmetric}
+			symClient, err := broadcast.NewBroadcastChannel(
+				*channel, cb, broadcastClient, streamGen, symParams)
 			if err != nil {
 				jww.FATAL.Panicf(
-					"Failed to start new broadcast client: %+v", err)
+					"Failed to start new symmetric broadcast client: %+v", err)
+			}
+
+			asymParams := broadcast.Param{Method: broadcast.Asymmetric}
+			asymClient, err := broadcast.NewBroadcastChannel(
+				*channel, cb, broadcastClient, streamGen, asymParams)
+			if err != nil {
+				jww.FATAL.Panicf(
+					"Failed to start new asymmetric broadcast client: %+v", err)
 			}
 
 			// Connect to the network
@@ -139,18 +124,30 @@ var bCast = &cobra.Command{
 
 			username := viper.GetString("username")
 
-			var broadcastFn client.BroadcastFn
-			var maxPayloadSize int
-			if isAsymmetric {
-				broadcastFn, maxPayloadSize = client.AsymmetricBroadcastFn(
-					bCastClient, username, privateKey)
-			} else {
-				broadcastFn, maxPayloadSize = client.SymmetricBroadcastFn(
-					bCastClient, username)
+			symBroadcastFn, maxPayloadSize := client.SymmetricBroadcastFn(
+				symClient, username)
+
+			// Load RSA private key from file
+			if viper.IsSet("admin") {
+				message := viper.GetString("admin")
+				privateKey, err := client.ReadRsaPrivateKey(
+					viper.GetString("key"), channel.Name)
+				if err != nil {
+					jww.FATAL.Panicf("Cannot join channel as admin. Cannot "+
+						"get RSA private key: %+v", err)
+				}
+
+				asymBroadcastFn, _ := client.AsymmetricBroadcastFn(
+					asymClient, username, privateKey)
+
+				err = asymBroadcastFn(client.Admin, netTime.Now(), []byte(message))
+				if err != nil {
+					jww.FATAL.Panicf("Failed to send message as admin on "+
+						"asymmetric channel: %+v", err)
+				}
 			}
 
-			ui.MakeUI(cbChan, broadcastFn, channel, username, maxPayloadSize,
-				isAsymmetric, privateKey != nil)
+			ui.MakeUI(cbChan, symBroadcastFn, channel, username, maxPayloadSize)
 
 			if !viper.GetBool("test") {
 				// Stop network follower
@@ -173,6 +170,7 @@ func init() {
 		"Skips creating a client and connecting to network so that the UI "+
 			"can be tested on its own.")
 	bindPFlag(bCast.Flags(), "test", bCast.Use)
+	hidePFlag(bCast.Flags(), "test", bCast.Use)
 
 	bCast.Flags().Bool("new", false,
 		"Creates a new broadcast channel with the specified name and "+
@@ -182,14 +180,6 @@ func init() {
 	bCast.Flags().Bool("load", false,
 		"Joins an existing broadcast channel.")
 	bindPFlag(bCast.Flags(), "load", bCast.Use)
-
-	bCast.Flags().BoolP("symmetric", "s", true,
-		"Creates a symmetric broadcast channel.")
-	bindPFlag(bCast.Flags(), "symmetric", bCast.Use)
-
-	bCast.Flags().BoolP("asymmetric", "a", false,
-		"Creates an asymmetric broadcast channel.")
-	bindPFlag(bCast.Flags(), "asymmetric", bCast.Use)
 
 	bCast.Flags().StringP("name", "n", "",
 		"The name of the channel.")
@@ -208,6 +198,12 @@ func init() {
 		"Location to save/load the RSA private key PEM file. Uses the name of "+
 			"the channel if no path is supplied.")
 	bindPFlag(bCast.Flags(), "key", bCast.Use)
+
+	bCast.Flags().StringP("admin", "a", "",
+		"Sends the given message as an admin. Either an RSA private key PEM "+
+			"file exists in the default location or one must be specified with "+
+			"the \"key\" flag.")
+	bindPFlag(bCast.Flags(), "admin", bCast.Use)
 
 	bCast.Flags().StringP("username", "u", "",
 		"Join the channel with this username.")
