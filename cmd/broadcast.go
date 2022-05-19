@@ -32,7 +32,7 @@ func loadingDots(quit chan struct{}) {
 }
 
 var bCast = &cobra.Command{
-	Use:   "broadcast {--new | --load} -o file [-d description -m name | -u username]",
+	Use:   "broadcast {--new | --load} -o file [-n name -d description | -u username]",
 	Short: "Create or join broadcast channels.",
 	Args:  cobra.NoArgs,
 	Run: func(cmd *cobra.Command, args []string) {

@@ -141,8 +141,9 @@ func init() {
 		"Password to the session file.")
 	bindPFlag(rootCmd.PersistentFlags(), "password", rootCmd.Use)
 
-	rootCmd.PersistentFlags().String("ndf", "ndf.json",
-		"Path to the network definition JSON file.")
+	rootCmd.PersistentFlags().String("ndf", "",
+		"Path to the network definition JSON file. By default, the "+
+			"prepacked NDF is used.")
 	bindPFlag(rootCmd.PersistentFlags(), "ndf", rootCmd.Use)
 
 	rootCmd.PersistentFlags().Duration("waitTimeout", 15*time.Second,

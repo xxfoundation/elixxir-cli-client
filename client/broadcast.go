@@ -174,7 +174,7 @@ type BroadcastFn func(tag Tag, timestamp time.Time, message []byte) error
 // broadcast messages.
 func SymmetricBroadcastFn(c broadcast.Channel, username string) (BroadcastFn, int) {
 	// Get the maximum payload size; dependent on symmetric or asymmetric
-	maxSymmetric := c.MaxSymmetricPayloadSize()
+	maxSymmetric := c.MaxPayloadSize()
 	maxSized := broadcast.MaxSizedBroadcastPayloadSize(maxSymmetric)
 	maxPayloadSize := MaxMessagePayloadSize(maxSized, username)
 
@@ -211,7 +211,7 @@ func SymmetricBroadcastFn(c broadcast.Channel, username string) (BroadcastFn, in
 func AsymmetricBroadcastFn(
 	c broadcast.Channel, username string, pk *rsa.PrivateKey) (BroadcastFn, int) {
 	// Get the maximum payload size; dependent on symmetric or asymmetric
-	maxAsymmetric := c.MaxAsymmetricPayloadSize()
+	maxAsymmetric := c.MaxPayloadSize()
 	maxSized := broadcast.MaxSizedBroadcastPayloadSize(maxAsymmetric)
 	maxPayloadSize := MaxMessagePayloadSize(maxSized, username)
 

@@ -1,6 +1,7 @@
 package client
 
 import (
+	_ "embed"
 	"github.com/pkg/errors"
 	jww "github.com/spf13/jwalterweatherman"
 	"gitlab.com/elixxir/client/api"
@@ -10,15 +11,20 @@ import (
 	"time"
 )
 
+//go:embed ndf.json
+var ndfJSON []byte
+
 // InitClient initializes and returns a new api.Client. If a session folder
 // already exists, then the client is loaded instead.
 func InitClient(password []byte, storeDir, ndfPath string) (*api.Client, error) {
 	// Create a new client if none exist
 	if _, err := os.Stat(storeDir); errors.Is(err, fs.ErrNotExist) {
 		// Load NDF
-		ndfJSON, err := ioutil.ReadFile(ndfPath)
-		if err != nil {
-			return nil, errors.Errorf("failed to read NDF file: %+v", err)
+		if ndfPath != "" {
+			ndfJSON, err = ioutil.ReadFile(ndfPath)
+			if err != nil {
+				return nil, errors.Errorf("failed to read NDF file: %+v", err)
+			}
 		}
 
 		err = api.NewClient(string(ndfJSON), storeDir, password, "")
