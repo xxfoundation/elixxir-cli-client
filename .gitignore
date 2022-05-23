@@ -16,3 +16,12 @@
 
 # Dependency directories (remove the comment below to include it)
 vendor/
+
+# File from testing
+session*/
+*.darwin64
+*.linux64
+*.win64
+*.xxchan
+*.pem
+*.log
