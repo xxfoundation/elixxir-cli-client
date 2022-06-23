@@ -92,7 +92,6 @@ func initLog(logPath string, logLevel int) {
 			jww.ERROR.Printf("Could not open log file %q: %+v\n", logPath, err)
 			jww.SetStdoutThreshold(jww.LevelFatal)
 		} else {
-			// jww.SetLogOutput(logFile)
 			jww.SetStdoutOutput(logFile)
 			jww.INFO.Printf("Setting log output to %q", logPath)
 		}

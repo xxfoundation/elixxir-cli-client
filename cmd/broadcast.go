@@ -15,8 +15,8 @@ import (
 	"github.com/spf13/cobra"
 	jww "github.com/spf13/jwalterweatherman"
 	"github.com/spf13/viper"
-	"gitlab.com/elixxir/client/api"
 	"gitlab.com/elixxir/client/broadcast"
+	"gitlab.com/elixxir/client/xxdk"
 	crypto "gitlab.com/elixxir/crypto/broadcast"
 	"gitlab.com/elixxir/crypto/fastRNG"
 	"gitlab.com/xx_network/crypto/csprng"
@@ -94,7 +94,7 @@ var bCast = &cobra.Command{
 			go loadingDots(quit)
 
 			// Initialise a new client
-			var cMixClient *api.Client
+			var cMixClient *xxdk.Cmix
 			var broadcastClient broadcast.Client
 			var err error
 			if viper.GetBool("test") {
@@ -111,7 +111,7 @@ var bCast = &cobra.Command{
 				if err != nil {
 					jww.FATAL.Panicf("Failed to initialise client: %+v", err)
 				}
-				broadcastClient = cMixClient.GetNetworkInterface()
+				broadcastClient = cMixClient.GetCmix()
 				jww.INFO.Printf("Initialised client.")
 			}
 

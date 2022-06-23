@@ -13,7 +13,7 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
-	"gitlab.com/elixxir/client/api"
+	"gitlab.com/elixxir/client/xxdk"
 	"gitlab.com/xx_network/primitives/utils"
 )
 
@@ -22,8 +22,8 @@ const currentVersion = "0.1.0"
 
 func Version() string {
 	out := fmt.Sprintf(
-		"Elixxir Client CLI v%s -- %s\n\n", api.SEMVER, api.GITVERSION)
-	out += fmt.Sprintf("Dependencies:\n\n%s\n", api.DEPENDENCIES)
+		"Elixxir Client CLI v%s -- %s\n\n", xxdk.SEMVER, xxdk.GITVERSION)
+	out += fmt.Sprintf("Dependencies:\n\n%s\n", xxdk.DEPENDENCIES)
 	return out
 }
 

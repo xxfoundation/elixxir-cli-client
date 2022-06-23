@@ -11,7 +11,7 @@ import (
 	_ "embed"
 	"github.com/pkg/errors"
 	jww "github.com/spf13/jwalterweatherman"
-	"gitlab.com/elixxir/client/api"
+	"gitlab.com/elixxir/client/xxdk"
 	"io/fs"
 	"io/ioutil"
 	"os"
@@ -23,7 +23,7 @@ var ndfJSON []byte
 
 // InitClient initializes and returns a new api.Client. If a session folder
 // already exists, then the client is loaded instead.
-func InitClient(password []byte, storeDir, ndfPath string) (*api.Client, error) {
+func InitClient(password []byte, storeDir, ndfPath string) (*xxdk.Cmix, error) {
 	// Create a new client if none exist
 	if _, err := os.Stat(storeDir); errors.Is(err, fs.ErrNotExist) {
 		// Load NDF
@@ -34,14 +34,14 @@ func InitClient(password []byte, storeDir, ndfPath string) (*api.Client, error) 
 			}
 		}
 
-		err = api.NewClient(string(ndfJSON), storeDir, password, "")
+		err = xxdk.NewCmix(string(ndfJSON), storeDir, password, "")
 		if err != nil {
 			return nil, errors.Errorf("failed to create new client: %+v", err)
 		}
 	}
 
 	// Load the client
-	client, err := api.Login(storeDir, password, nil, api.GetDefaultParams())
+	client, err := xxdk.LoadCmix(storeDir, password, xxdk.GetDefaultParams())
 	if err != nil {
 		return nil, errors.Errorf("failed to log in into client: %+v", err)
 	}
@@ -50,7 +50,7 @@ func InitClient(password []byte, storeDir, ndfPath string) (*api.Client, error) 
 }
 
 // ConnectToNetwork connects the client to the network.
-func ConnectToNetwork(client *api.Client, timeout time.Duration) error {
+func ConnectToNetwork(client *xxdk.Cmix, timeout time.Duration) error {
 	// Start the network follower
 	err := client.StartNetworkFollower(5 * time.Second)
 	if err != nil {
@@ -59,7 +59,7 @@ func ConnectToNetwork(client *api.Client, timeout time.Duration) error {
 
 	// Wait until connected or crash on timeout
 	connected := make(chan bool, 10)
-	client.GetNetworkInterface().AddHealthCallback(
+	client.GetCmix().AddHealthCallback(
 		func(isConnected bool) { connected <- isConnected })
 	waitUntilConnected(connected, timeout)
 
