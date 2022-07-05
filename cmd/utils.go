@@ -13,25 +13,11 @@ import (
 	"gitlab.com/elixxir/client/cmix/message"
 	"gitlab.com/elixxir/client/cmix/rounds"
 	"gitlab.com/elixxir/primitives/format"
-	"gitlab.com/xx_network/crypto/signature/rsa"
 	"gitlab.com/xx_network/primitives/id"
 	"gitlab.com/xx_network/primitives/id/ephemeral"
-	"math/rand"
 	"sync"
-	"testing"
 	"time"
 )
-
-// newRsaPubKey generates a new random RSA public key for testing.
-func newRsaPubKey(seed int64, t *testing.T) *rsa.PublicKey {
-	prng := rand.New(rand.NewSource(seed))
-	privKey, err := rsa.GenerateKey(prng, 64)
-	if err != nil {
-		t.Errorf("Failed to generate new RSA key: %+v", err)
-	}
-
-	return privKey.GetPublic()
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 // Mock cMix Client                                                           //
