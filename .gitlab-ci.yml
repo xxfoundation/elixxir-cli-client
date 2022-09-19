@@ -16,6 +16,7 @@ before_script:
 stages:
   - test
   - build
+  - build_release
 
 test:
   stage: test
@@ -52,6 +53,16 @@ build:
     - tags
   script:
     - go mod vendor -v
+    - mkdir -p release
+    - go build ./...
+
+build_release:
+  stage: build
+  image: $DOCKER_IMAGE
+  except:
+    - tags
+  script:
+    - go mod vendor -v
     - make version
     - mkdir -p release
     - GOOS=linux   GOARCH=amd64 CGO_ENABLED=0 go build -ldflags '-w -s' -o release/cli-client.linux64 main.go
@@ -61,3 +72,6 @@ build:
   artifacts:
     paths:
       - release/
+  only:
+    - master
+    - release
