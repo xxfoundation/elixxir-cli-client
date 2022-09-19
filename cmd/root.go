@@ -15,6 +15,7 @@ import (
 	jww "github.com/spf13/jwalterweatherman"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
+	"gitlab.com/xx_network/primitives/utils"
 	"log"
 	"os"
 	"strings"
@@ -36,6 +37,9 @@ var rootCmd = &cobra.Command{
 	Short: "Command-line interface for client.",
 	Args:  cobra.NoArgs,
 	Run: func(cmd *cobra.Command, args []string) {
+		// Initiate config file
+		initConfig(viper.GetString("config"))
+
 		// Initialize logging and print version
 		initLog(viper.GetString("logPath"), viper.GetInt("logLevel"))
 		jww.INFO.Printf(Version())
@@ -72,6 +76,39 @@ func getPwFromB64String(pwStr string) []byte {
 			"Failed to get password %q from base 64 string: %+v", pwStr, err)
 	}
 	return pwBytes
+}
+
+// initConfig reads in config file and ENV variables if set.
+func initConfig(configPath string) {
+	jww.INFO.Printf("Getting config file %s", configPath)
+	// Use default config location if none is passed
+	var err error
+	if configPath == "" {
+		configPath, err = utils.SearchDefaultLocations(
+			"cli-client.yaml", "xxnetwork")
+		if err != nil {
+			jww.DEBUG.Printf("Failed to find config file: %+v", err)
+		}
+	} else {
+		configPath, err = utils.ExpandPath(configPath)
+		if err != nil {
+			jww.DEBUG.Printf("Failed to expand config file path: %+v", err)
+		}
+	}
+
+	jww.INFO.Printf("Setting config file %s", configPath)
+	viper.SetConfigType("yaml")
+	viper.SetConfigFile(configPath)
+	viper.AutomaticEnv() // Read in environment variables that match
+
+	// If a config file is found, read it in
+	if err = viper.ReadInConfig(); err != nil {
+		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
+			// Config file was found but another error was produced
+			jww.FATAL.Panicf(
+				"Unable to read config file (%s): %+v", configPath, err)
+		}
+	}
 }
 
 // initLog initializes logging thresholds and the log path. If not path is
@@ -131,6 +168,10 @@ func init() {
 	rootCmd.PersistentFlags().IntP("logLevel", "v", 0,
 		"Verbosity level for log printing (2+ = Trace, 1 = Debug, 0 = Info).")
 	bindPFlag(rootCmd.PersistentFlags(), "logLevel", rootCmd.Use)
+
+	rootCmd.PersistentFlags().StringP("config", "c", "",
+		"Path to YAML file with custom configuration..")
+	bindPFlag(rootCmd.PersistentFlags(), "config", rootCmd.Use)
 
 	rootCmd.PersistentFlags().StringP("session", "s", "session",
 		"Sets the initial storage directory for client session data.")

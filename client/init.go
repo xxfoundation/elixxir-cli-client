@@ -41,7 +41,7 @@ func InitClient(password []byte, storeDir, ndfPath string) (*xxdk.Cmix, error) {
 	}
 
 	// Load the client
-	client, err := xxdk.LoadCmix(storeDir, password, xxdk.GetDefaultParams())
+	client, err := xxdk.LoadCmix(storeDir, password, xxdk.GetDefaultCMixParams())
 	if err != nil {
 		return nil, errors.Errorf("failed to log in into client: %+v", err)
 	}
