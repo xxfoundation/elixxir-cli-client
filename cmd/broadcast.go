@@ -43,6 +43,9 @@ var bCast = &cobra.Command{
 	Short: "Create or join broadcast channels.",
 	Args:  cobra.NoArgs,
 	Run: func(cmd *cobra.Command, args []string) {
+		// Initiate config file
+		initConfig(viper.GetString("config"))
+
 		// Initialize logging and print version
 		initLog(viper.GetString("logPath"), viper.GetInt("logLevel"))
 		jww.INFO.Printf(Version())
@@ -153,20 +156,30 @@ var bCast = &cobra.Command{
 			symBroadcastFn, maxPayloadSize := client.SymmetricBroadcastFn(
 				symClient, username)
 
+			var asymBroadcastFn client.BroadcastFn
+			var asymMaxPayloadSize int
+
+			privateKey, err := client.ReadRsaPrivateKey(
+				viper.GetString("key"), channel.Name)
+			if err != nil {
+				jww.WARN.Printf("Cannot join channel as admin. Cannot "+
+					"get RSA private key: %+v", err)
+			} else {
+				asymBroadcastFn, asymMaxPayloadSize =
+					client.AsymmetricBroadcastFn(asymClient, username, privateKey)
+			}
+
 			// Load RSA private key from file
 			if viper.IsSet("admin") {
-				message := viper.GetString("admin")
-				privateKey, err := client.ReadRsaPrivateKey(
-					viper.GetString("key"), channel.Name)
-				if err != nil {
-					jww.FATAL.Panicf("Cannot join channel as admin. Cannot "+
-						"get RSA private key: %+v", err)
+				if asymBroadcastFn == nil {
+					jww.FATAL.Panic(
+						"Failed to initialise asymmetric broadcast function.")
 				}
 
-				asymBroadcastFn, _ := client.AsymmetricBroadcastFn(
-					asymClient, username, privateKey)
+				message := viper.GetString("admin")
 
-				err = asymBroadcastFn(client.Admin, netTime.Now(), []byte(message))
+				err = asymBroadcastFn(
+					client.Admin, netTime.Now(), []byte(message))
 				quit <- struct{}{}
 				if err != nil {
 					jww.FATAL.Panicf("Failed to send message as admin on "+
@@ -174,7 +187,9 @@ var bCast = &cobra.Command{
 				}
 			} else {
 				quit <- struct{}{}
-				ui.MakeUI(cbChan, symBroadcastFn, channel, username, maxPayloadSize)
+				m := ui.NewManager(channel, cbChan, symBroadcastFn, asymBroadcastFn,
+					username, maxPayloadSize, asymMaxPayloadSize)
+				m.MakeUI()
 			}
 
 			if !viper.GetBool("test") {
