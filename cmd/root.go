@@ -202,6 +202,16 @@ func bindPFlag(flagSet *pflag.FlagSet, key, use string) {
 	}
 }
 
+// bindPFlag binds the key to a pflag.Flag. Panics on error.
+func markFlagRequired(cmd *cobra.Command, name string) {
+	err := cmd.MarkFlagRequired(name)
+	if err != nil {
+		jww.FATAL.Panicf(
+			"Failed to mark flag %q on command %s as required: %+v",
+			name, cmd.Name(), err)
+	}
+}
+
 // hidePFlag hides the key to a pflag.Flag in the help text. Panics on error.
 func hidePFlag(flagSet *pflag.FlagSet, key, use string) {
 	err := flagSet.MarkHidden(key)

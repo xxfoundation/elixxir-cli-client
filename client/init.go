@@ -63,19 +63,6 @@ func ConnectToNetwork(client *xxdk.Cmix, timeout time.Duration) error {
 		func(isConnected bool) { connected <- isConnected })
 	waitUntilConnected(connected, timeout)
 
-	// After connection, wait until registered with at least 85% of nodes
-	for numReg, total := 1, 100; numReg < (total*3)/4; {
-		time.Sleep(1 * time.Second)
-
-		numReg, total, err = client.GetNodeRegistrationStatus()
-		if err != nil {
-			return errors.Errorf(
-				"failed to get node registration status: %+v", err)
-		}
-
-		jww.INFO.Printf("Registering with nodes (%d/%d)...", numReg, total)
-	}
-
 	return nil
 }
 

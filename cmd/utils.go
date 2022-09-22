@@ -40,6 +40,11 @@ type mockCmix struct {
 	handler       *mockCmixHandler
 }
 
+func (m *mockCmix) SendWithAssembler(recipient *id.ID, assembler cmix.MessageAssembler, cmixParams cmix.CMIXParams) (rounds.Round, ephemeral.Id, error) {
+	// TODO implement me
+	panic("implement me")
+}
+
 func newMockCmix(handler *mockCmixHandler) *mockCmix {
 	return &mockCmix{
 		numPrimeBytes: 1024,
