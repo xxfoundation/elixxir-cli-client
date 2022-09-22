@@ -16,7 +16,6 @@ import (
 )
 
 type channel struct {
-	chanID          uint64
 	chanBuff        strings.Builder
 	receivedMsgChan chan string
 	sendFn          client.SendMessage
@@ -35,11 +34,12 @@ func (ch *channel) getBuff() string {
 	return ch.chanBuff.String()
 }
 
-func (ch *channel) updateChatFeed(updateFeed chan struct{}, updateChatList func(uint64)) {
+func (ch *channel) updateChatFeed(updateFeed chan struct{}) {
 	for {
 		select {
 		case r := <-ch.receivedMsgChan:
-			jww.INFO.Printf("Got broadcast for channel %d: %q", ch.chanID, r)
+			jww.INFO.Printf("Got broadcast for channel %d (%s): %q",
+				ch.c.Name, ch.c.ReceptionID, r)
 
 			ch.mux.Lock()
 			ch.chanBuff.WriteString(string(r) + "\n\n")
@@ -47,7 +47,6 @@ func (ch *channel) updateChatFeed(updateFeed chan struct{}, updateChatList func(
 			ch.mux.Unlock()
 
 			updateFeed <- struct{}{}
-			go updateChatList(ch.chanID)
 		}
 	}
 }

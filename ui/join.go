@@ -15,7 +15,7 @@ import (
 )
 
 const (
-	joinGroup             = "joinGroup"
+	joinGroupBox          = "joinGroupBox"
 	joinGroupInput        = "joinGroupInput"
 	joinGroupCancelButton = "joinGroupCancelButton"
 	joinGroupSubmitButton = "joinGroupSubmitButton"
@@ -44,10 +44,10 @@ func (chs *Channels) joinChannel() func(*gocui.Gui, *gocui.View) error {
 
 		g.Cursor = true
 
-		if v, err := g.SetView(joinGroup, maxX/2-40, maxY/2-8, maxX/2+40, maxY/2+8, 0); err != nil {
+		if v, err := g.SetView(joinGroupBox, maxX/2-40, maxY/2-8, maxX/2+40, maxY/2+8, 0); err != nil {
 			if err != gocui.ErrUnknownView {
 				return errors.Errorf(
-					"Failed to set view %q: %+v", joinGroup, err)
+					"Failed to set view %q: %+v", joinGroupBox, err)
 			}
 			v.Title = " Join New Channel "
 			v.Wrap = true
@@ -175,10 +175,10 @@ func (chs *Channels) closeJoinBox(savedActiveArr []string) func(g *gocui.Gui, v 
 		chs.v.activeArr = savedActiveArr
 		chs.v.active = 0
 		g.Cursor = false
-		err := g.DeleteView(joinGroup)
+		err := g.DeleteView(joinGroupBox)
 		if err != nil {
 			return errors.Errorf(
-				"Failed to delete view %q: %+v", joinGroup, err)
+				"Failed to delete view %q: %+v", joinGroupBox, err)
 		}
 		err = g.DeleteView(joinGroupInput)
 		if err != nil {
@@ -238,10 +238,10 @@ func (chs *Channels) joinGroup(savedActiveArr []string) func(g *gocui.Gui, v *go
 		chs.v.activeArr = savedActiveArr
 		chs.v.active = 0
 		g.Cursor = false
-		err = g.DeleteView(joinGroup)
+		err = g.DeleteView(joinGroupBox)
 		if err != nil {
 			return errors.Errorf(
-				"Failed to delete view %q: %+v", joinGroup, err)
+				"Failed to delete view %q: %+v", joinGroupBox, err)
 		}
 		err = g.DeleteView(joinGroupInput)
 		if err != nil {

@@ -17,7 +17,7 @@ import (
 )
 
 const (
-	leaveGroup             = "leaveGroup"
+	leaveGroupBox          = "leaveGroupBox"
 	leaveGroupSubmitButton = "leaveGroupSubmitButton"
 	leaveGroupCancelButton = "leaveGroupCancelButton"
 )
@@ -50,10 +50,10 @@ func (chs *Channels) leaveChannel() func(*gocui.Gui, *gocui.View) error {
 		}
 		chs.v.active = 0
 
-		if v, err := g.SetView(leaveGroup, maxX/2-40, maxY/2-8, maxX/2+40, maxY/2+8, 0); err != nil {
+		if v, err := g.SetView(leaveGroupBox, maxX/2-40, maxY/2-8, maxX/2+40, maxY/2+8, 0); err != nil {
 			if err != gocui.ErrUnknownView {
 				return errors.Errorf(
-					"Failed to set view %q: %+v", leaveGroup, err)
+					"Failed to set view %q: %+v", leaveGroupBox, err)
 			}
 			v.Title = " Leave Channel "
 			v.Wrap = true
@@ -138,10 +138,10 @@ func (chs *Channels) closeLeaveBox(savedActiveArr []string) func(g *gocui.Gui, v
 		chs.v.activeArr = savedActiveArr
 		chs.v.active = 0
 		g.Cursor = false
-		err := g.DeleteView(leaveGroup)
+		err := g.DeleteView(leaveGroupBox)
 		if err != nil {
 			return errors.Errorf(
-				"Failed to delete view %q: %+v", leaveGroup, err)
+				"Failed to delete view %q: %+v", leaveGroupBox, err)
 		}
 		err = g.DeleteView(leaveGroupCancelButton)
 		if err != nil {
@@ -175,10 +175,10 @@ func (chs *Channels) leaveGroup(chanID *id.ID, savedActiveArr []string) func(g *
 		chs.v.activeArr = savedActiveArr
 		chs.v.active = 0
 		g.Cursor = false
-		err = g.DeleteView(leaveGroup)
+		err = g.DeleteView(leaveGroupBox)
 		if err != nil {
 			return errors.Errorf(
-				"Failed to delete view %q: %+v", leaveGroup, err)
+				"Failed to delete view %q: %+v", leaveGroupBox, err)
 		}
 		err = g.DeleteView(leaveGroupCancelButton)
 		if err != nil {

@@ -15,7 +15,7 @@ import (
 )
 
 const (
-	newGroup             = "newGroup"
+	newGroupBox          = "newGroupBox"
 	newGroupNameInput    = "newGroupNameInput"
 	newGroupDescInput    = "newGroupDescInput"
 	newGroupCancelButton = "newGroupCancelButton"
@@ -46,10 +46,10 @@ func (chs *Channels) newChannel() func(*gocui.Gui, *gocui.View) error {
 
 		g.Cursor = true
 
-		if v, err := g.SetView(newGroup, maxX/2-40, maxY/2-8, maxX/2+40, maxY/2+8, 0); err != nil {
+		if v, err := g.SetView(newGroupBox, maxX/2-40, maxY/2-8, maxX/2+40, maxY/2+8, 0); err != nil {
 			if err != gocui.ErrUnknownView {
 				return errors.Errorf(
-					"Failed to set view %q: %+v", newGroup, err)
+					"Failed to set view %q: %+v", newGroupBox, err)
 			}
 			v.Title = " Make New Channel "
 			v.Wrap = true
@@ -225,10 +225,10 @@ func (chs *Channels) closeNewBox(savedActiveArr []string) func(g *gocui.Gui, v *
 
 		chs.v.activeArr = savedActiveArr
 		chs.v.active = 0
-		err := g.DeleteView(newGroup)
+		err := g.DeleteView(newGroupBox)
 		if err != nil {
 			return errors.Errorf(
-				"Failed to delete view %q: %+v", newGroup, err)
+				"Failed to delete view %q: %+v", newGroupBox, err)
 		}
 		err = g.DeleteView(newGroupNameInput)
 		if err != nil {
@@ -290,14 +290,14 @@ func (chs *Channels) newGroup(savedActiveArr []string) func(g *gocui.Gui, v *goc
 				submitButton.Highlight = false
 			}()
 		}()
-		newGroupBox, err := g.View(newGroup)
+		newGroupBoxV, err := g.View(newGroupBox)
 		if err != nil {
-			return errors.Errorf("Failed to get view %q: %+v", newGroup, err)
+			return errors.Errorf("Failed to get view %q: %+v", newGroupBox, err)
 		}
 
 		chanIO, err := chs.m.GenerateChannel(nameBuff, descBuff)
 		if err != nil {
-			newGroupBox.WriteString(err.Error())
+			newGroupBoxV.WriteString(err.Error())
 			return errors.Errorf(
 				"Failed to generate new channel %q: %+v", nameBuff, err)
 		}
@@ -308,10 +308,10 @@ func (chs *Channels) newGroup(savedActiveArr []string) func(g *gocui.Gui, v *goc
 		chs.v.activeArr = savedActiveArr
 		chs.v.active = 0
 		g.Cursor = false
-		err = g.DeleteView(newGroup)
+		err = g.DeleteView(newGroupBox)
 		if err != nil {
 			return errors.Errorf(
-				"Failed to delete view %q: %+v", newGroup, err)
+				"Failed to delete view %q: %+v", newGroupBox, err)
 		}
 		err = g.DeleteView(newGroupNameInput)
 		if err != nil {

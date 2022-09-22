@@ -33,9 +33,10 @@ func loadingDots(quit chan struct{}) {
 }
 
 var bCast = &cobra.Command{
-	Use:   "broadcast {--new | --load} -o file [-n name -d description | -u username]",
-	Short: "Create or join broadcast channels.",
-	Args:  cobra.NoArgs,
+	Use: "broadcast -u username",
+	Short: "Start the channel TUI that allows for joining and creating " +
+		"channels to send and receive messages on.",
+	Args: cobra.NoArgs,
 	Run: func(cmd *cobra.Command, args []string) {
 		// Initiate config file
 		initConfig(viper.GetString("config"))

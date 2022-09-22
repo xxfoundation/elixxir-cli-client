@@ -8,9 +8,16 @@ import (
 )
 
 type views struct {
-	activeArr    []string
-	active       int
-	cursorList   map[string]struct{}
+	subView
+
+	// The ID of the view in activeArr that is currently active/selected
+	active int
+
+	// List of windows
+	main         *mainView
+	newBox       *newBoxView
+	joinBox      *joinBoxView
+	leaveBox     *leaveBoxView
 	titleBox     *gocui.View
 	newButton    *gocui.View
 	joinButton   *gocui.View
@@ -22,9 +29,75 @@ type views struct {
 	messageCount *gocui.View
 }
 
+func newViews() *views {
+	v := &views{
+		subView: newSubView(),
+		main: &mainView{
+			subView: subView{
+				active: 4,
+				list: []string{titleBox, newButton, joinButton, leaveButton,
+					chatList, channelFeed, messageInput, sendButton,
+					messageCount},
+				activeArr: []string{titleBox, newButton, joinButton,
+					leaveButton, chatList, channelFeed, messageInput,
+					sendButton},
+				cursorList: map[string]struct{}{
+					messageInput: {},
+				},
+			},
+		},
+		newBox: &newBoxView{
+			subView: subView{
+				active: 0,
+				list: []string{newGroupBox, newGroupNameInput,
+					newGroupDescInput, newGroupCancelButton,
+					newGroupSubmitButton},
+				activeArr: []string{newGroupNameInput,
+					newGroupDescInput, newGroupCancelButton,
+					newGroupSubmitButton},
+				cursorList: map[string]struct{}{
+					newGroupNameInput: {},
+					newGroupDescInput: {},
+				},
+			},
+		},
+		joinBox: &joinBoxView{
+			subView: subView{
+				active: 0,
+				list: []string{joinGroupBox, joinGroupInput,
+					joinGroupCancelButton, joinGroupSubmitButton},
+				activeArr: []string{joinGroupInput,
+					joinGroupCancelButton, joinGroupSubmitButton},
+				cursorList: map[string]struct{}{
+					joinGroupInput: {},
+				},
+			},
+		},
+		leaveBox: &leaveBoxView{
+			subView: subView{
+				active: 1,
+				list: []string{leaveGroupBox, leaveGroupSubmitButton,
+					leaveGroupCancelButton},
+				activeArr: []string{leaveGroupSubmitButton,
+					leaveGroupCancelButton},
+				cursorList: map[string]struct{}{},
+			},
+		},
+	}
+
+	return v
+}
+
 func (v *views) inCursorList(name string) bool {
 	_, exists := v.cursorList[name]
 	return exists
+}
+
+func (v *views) switchSubView(sb subView) {
+	v.subView.active = sb.active
+	v.subView.list = sb.list
+	v.subView.activeArr = sb.activeArr
+	v.subView.cursorList = sb.cursorList
 }
 
 func (v *views) writeChannelInfo(c *crypto.Channel) bool {

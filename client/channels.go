@@ -161,6 +161,8 @@ func (m *Manager) ReceiveMessage(channelID *id.ID, messageID channel.MessageID, 
 		return
 	}
 
+	jww.INFO.Printf("Received message %s for channel %s from %s at %s on round %d: %s", messageID, channelID, senderUsername, timestamp, text)
+
 	usernameField := "\x1b[38;5;255m" + senderUsername + "\x1b[0m"
 	timestampField := "\x1b[38;5;245m[received " + netTime.Now().Format("3:04:05 pm") + " / sent " + timestamp.Format("3:04:05 pm") + " / round " + strconv.Itoa(int(round.ID)) + "]\x1b[0m"
 	messageField := "\x1b[38;5;250m" + strings.TrimSpace(text) + "\x1b[0m"

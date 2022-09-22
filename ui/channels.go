@@ -19,30 +19,25 @@ import (
 )
 
 type Channels struct {
-	m                *client.Manager
-	v                views
-	channels         map[uint64]*channel
-	currentIndex     uint64
-	currentIndexChan chan uint64
-	nextIndex        uint64
-	updateFeed       chan struct{}
-	mux              sync.RWMutex
+	m            *client.Manager
+	v            *views
+	channels     map[uint64]*channel
+	channels2    []*channel
+	currentIndex uint64
+	nextIndex    uint64
+	updateFeed   chan struct{}
+	mux          sync.RWMutex
 }
 
 func NewChannels(m *client.Manager) *Channels {
 	cs := &Channels{
-		m: m,
-		v: views{
-			activeArr:  []string{},
-			active:     0,
-			cursorList: make(map[string]struct{}),
-		},
-		channels:         make(map[uint64]*channel),
-		currentIndex:     0,
-		currentIndexChan: make(chan uint64, 25),
-		nextIndex:        0,
-		updateFeed:       make(chan struct{}, 25),
-		mux:              sync.RWMutex{},
+		m:            m,
+		v:            newViews(),
+		channels:     make(map[uint64]*channel),
+		currentIndex: 0,
+		nextIndex:    0,
+		updateFeed:   make(chan struct{}, 25),
+		mux:          sync.RWMutex{},
 	}
 
 	go cs.UpdateChannelFeedThread()
@@ -55,7 +50,6 @@ func (chs *Channels) Add(receivedMsgChan chan string, sendFn client.SendMessage,
 	chs.mux.Lock()
 	defer chs.mux.Unlock()
 	chs.channels[chs.nextIndex] = &channel{
-		chanID:          chs.nextIndex,
 		chanBuff:        strings.Builder{},
 		receivedMsgChan: receivedMsgChan,
 		sendFn:          sendFn,
@@ -67,8 +61,18 @@ func (chs *Channels) Add(receivedMsgChan chan string, sendFn client.SendMessage,
 
 	chs.updateFeed <- struct{}{}
 	go chs.UpdateChatList(chs.nextIndex)
-	go chs.channels[chs.nextIndex].updateChatFeed(chs.updateFeed, chs.UpdateChatList)
+	go chs.channels[chs.nextIndex].updateChatFeed(chs.updateFeed)
 	chs.nextIndex++
+}
+
+func (chs *Channels) Remove(chanID uint64) {
+
+	chs.mux.Lock()
+	defer chs.mux.Unlock()
+
+	// chs.channels = append(chs.channels[:chanID], chs.channels[chanID+1:]...)
+
+	chs.nextIndex--
 }
 
 func (chs *Channels) Len() int {
@@ -123,11 +127,10 @@ func (chs *Channels) UpdateChatList(selected uint64) {
 func (chs *Channels) UpdateChannelFeed(chanID uint64) {
 	chs.currentIndex = chanID
 	chs.v.channelFeed.Clear()
-	chs.v.channelFeed.Title = " Channel Feed for channel #" + strconv.FormatUint(chanID, 10) + " [F4] "
-	_, err := fmt.Fprintf(chs.v.channelFeed, chs.channels[chanID].getBuff())
-	if err != nil {
-		jww.ERROR.Print(err)
-	}
+
+	c := chs.channels[chanID]
+	chs.v.channelFeed.Title = " Channel Feed for channel " + c.c.Name + " [F4] "
+	chs.v.channelFeed.WriteString(chs.channels[chanID].getBuff())
 
 	chs.UpdateChatList(chanID)
 }
