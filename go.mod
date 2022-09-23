@@ -13,6 +13,7 @@ require (
 	gitlab.com/elixxir/client v1.5.1-0.20220922221524-61839c3f5f74
 	gitlab.com/elixxir/crypto v0.0.7-0.20220920002307-5541473e9aa7
 	gitlab.com/xx_network/primitives v0.0.4-0.20220809193445-9fc0a5209548
+	golang.design/x/clipboard v0.6.2
 )
 
 require (
@@ -64,6 +65,9 @@ require (
 	go.uber.org/atomic v1.10.0 // indirect
 	go.uber.org/ratelimit v0.2.0 // indirect
 	golang.org/x/crypto v0.0.0-20220722155217-630584e8d5aa // indirect
+	golang.org/x/exp v0.0.0-20200331195152-e8c3332aa8e5 // indirect
+	golang.org/x/image v0.0.0-20211028202545-6944b10bf410 // indirect
+	golang.org/x/mobile v0.0.0-20210716004757-34ab1303b554 // indirect
 	golang.org/x/net v0.0.0-20220822230855-b0a4917ee28c // indirect
 	golang.org/x/sys v0.0.0-20220731174439-a90be440212d // indirect
 	golang.org/x/term v0.0.0-20210927222741-03fcf44c2211 // indirect

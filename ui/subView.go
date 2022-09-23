@@ -88,5 +88,6 @@ type channelInfoView struct {
 	channelInfoBox          *gocui.View
 	channelInfoBoxInside    *gocui.View
 	channelInfoExpandButton *gocui.View
+	channelInfoCopyButton   *gocui.View
 	channelInfoCloseButton  *gocui.View
 }

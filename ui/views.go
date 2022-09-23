@@ -75,8 +75,10 @@ func newViews() *views {
 			subView: subView{
 				active: 0,
 				list: []string{channelInfoBox, channelInfoBoxInside,
-					channelInfoExpandButton, channelInfoCloseButton},
-				activeArr: []string{channelInfoBoxInside, channelInfoExpandButton,
+					channelInfoExpandButton, channelInfoCopyButton,
+					channelInfoCloseButton},
+				activeArr: []string{channelInfoBoxInside,
+					channelInfoExpandButton, channelInfoCopyButton,
 					channelInfoCloseButton},
 				cursorList: map[string]struct{}{},
 			},
@@ -106,10 +108,8 @@ func (v *views) writeChannelInfo(c *crypto.Channel) bool {
 			"\x1B[38;5;255m"+"Description:"+"\x1B[38;5;250m\n"+
 			" %s\n\n"+
 			"\x1B[38;5;255m"+"Channel ID:"+"\x1B[38;5;250m\n"+
-			" %s\n\n"+
-			"\x1B[38;5;255m"+"Pretty Print:"+"\x1B[38;5;250m\n"+
 			" %s"+"\x1b[0m"+"\n\n\n",
-		c.Name, c.Description, c.ReceptionID, c.PrettyPrint())
+		c.Name, c.Description, c.ReceptionID)
 	if err != nil {
 		jww.FATAL.Panicf("%+v", err)
 	}

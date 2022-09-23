@@ -11,6 +11,8 @@ import (
 	"fmt"
 	"github.com/awesome-gocui/gocui"
 	"github.com/pkg/errors"
+	crypto "gitlab.com/elixxir/crypto/broadcast"
+	"golang.design/x/clipboard"
 	"strconv"
 	"strings"
 	"time"
@@ -20,6 +22,7 @@ const (
 	channelInfoBox          = "channelInfoBox"
 	channelInfoBoxInside    = "channelInfoBoxInside"
 	channelInfoExpandButton = "channelInfoExpandButton"
+	channelInfoCopyButton   = "channelInfoCopyButton"
 	channelInfoCloseButton  = "channelInfoCloseButton"
 )
 
@@ -76,7 +79,6 @@ func (chs *Channels) channelInfoBox(expand bool) func(*gocui.Gui, *gocui.View) e
 			lines := []string{
 				fmt.Sprintf("%s:\n%s", bold("Name"), dim(c.Name)),
 				fmt.Sprintf("%s:\n%s", bold("Description"), dim(c.Description)),
-				fmt.Sprintf("%s:\n%s", bold("Description"), dim(c.Description)),
 				fmt.Sprintf("%s:\n%s", bold("ReceptionID"), dim(c.ReceptionID.String())),
 				fmt.Sprintf("%s:\n%s", bold("Pretty Print"), dim(c.PrettyPrint())),
 				fmt.Sprintf("%s:\n%s", bold("Salt"), dim(fmt.Sprintf("%v", c.Salt))),
@@ -118,6 +120,7 @@ func (chs *Channels) channelInfoBox(expand bool) func(*gocui.Gui, *gocui.View) e
 					"failed to set key binding for left mouse button: %+v", err)
 			}
 		}
+
 		if expand {
 			x0, y0, x1, y1 = maxX/2-40+12, maxY-4, maxX/2-40+28, maxY-2
 		} else {
@@ -154,6 +157,41 @@ func (chs *Channels) channelInfoBox(expand bool) func(*gocui.Gui, *gocui.View) e
 		} else {
 			chs.v.channelInfoBox.channelInfoExpandButton.Clear()
 			chs.v.channelInfoBox.channelInfoExpandButton.WriteString(centerView("Expand", chs.v.channelInfoBox.channelInfoExpandButton))
+		}
+
+		if chs.useClipboard {
+
+			if expand {
+				x0, y0, x1, y1 = maxX/2-8, maxY-4, maxX/2+8, maxY-2
+			} else {
+				x0, y0, x1, y1 = maxX/2-8, maxY/2+12, maxX/2+8, maxY/2+14
+			}
+			if v, err := g.SetView(channelInfoCopyButton, x0, y0, x1, y1, 0); err != nil {
+				if err != gocui.ErrUnknownView {
+					return errors.Errorf(
+						"Failed to set view %q: %+v", channelInfoCopyButton, err)
+				}
+
+				v.SelBgColor = gocui.ColorGreen
+				v.SelFgColor = gocui.ColorBlack
+				chs.v.channelInfoBox.channelInfoCopyButton = v
+
+				v.WriteString(centerView("Copy", v))
+
+				err = g.SetKeybinding(
+					channelInfoCopyButton, gocui.MouseLeft, gocui.ModNone, chs.copyPrettyPrint(c))
+				if err != nil {
+					return errors.Errorf(
+						"failed to set key binding for left mouse button: %+v", err)
+				}
+
+				err = g.SetKeybinding(
+					channelInfoCopyButton, gocui.KeyEnter, gocui.ModNone, chs.copyPrettyPrint(c))
+				if err != nil {
+					return errors.Errorf(
+						"failed to set key binding for enter key: %+v", err)
+				}
+			}
 		}
 
 		if expand {
@@ -225,5 +263,21 @@ func (chs *Channels) resizeInfoBox() func(g *gocui.Gui, v *gocui.View) error {
 		}()
 
 		return chs.channelInfoBox(!chs.v.channelInfoBox.expanded)(g, v)
+	}
+}
+
+func (chs *Channels) copyPrettyPrint(c *crypto.Channel) func(g *gocui.Gui, v *gocui.View) error {
+	return func(g *gocui.Gui, v *gocui.View) error {
+		v.Highlight = true
+		defer func() {
+			go func() {
+				time.Sleep(500 * time.Millisecond)
+				v.Highlight = false
+			}()
+		}()
+
+		clipboard.Write(clipboard.FmtText, []byte(c.PrettyPrint()))
+
+		return nil
 	}
 }

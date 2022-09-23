@@ -12,6 +12,7 @@ import (
 	"git.xx.network/elixxir/cli-client/client"
 	jww "github.com/spf13/jwalterweatherman"
 	crypto "gitlab.com/elixxir/crypto/broadcast"
+	"golang.design/x/clipboard"
 	"strconv"
 	"strings"
 	"sync"
@@ -26,6 +27,7 @@ type Channels struct {
 	nextIndex    int
 	updateFeed   chan struct{}
 	username     string
+	useClipboard bool
 	mux          sync.RWMutex
 }
 
@@ -38,6 +40,14 @@ func NewChannels(m *client.Manager) *Channels {
 		nextIndex:    0,
 		updateFeed:   make(chan struct{}, 25),
 		username:     m.Username(),
+		useClipboard: true,
+	}
+
+	err := clipboard.Init()
+	if err != nil {
+		jww.ERROR.Printf("Failed to initialize clipboard; clipboard use will"+
+			"be disabled: %+v", err)
+		cs.useClipboard = false
 	}
 
 	go cs.UpdateChannelFeedThread()
