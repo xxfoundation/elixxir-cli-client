@@ -665,6 +665,8 @@ gitlab.com/elixxir/client v1.5.1-0.20220922181831-a9a02a98e068 h1:Z3NAiaYGztodzA
 gitlab.com/elixxir/client v1.5.1-0.20220922181831-a9a02a98e068/go.mod h1:iW6LK0+LE8fI+xo6rwHrwLARO8o5rt2I/eFbaUXiqh8=
 gitlab.com/elixxir/client v1.5.1-0.20220922182248-a037ba8c001c h1:88GaYyNND88y7/Z2CGbL0iWGT52tep9uaC22z/zNM8c=
 gitlab.com/elixxir/client v1.5.1-0.20220922182248-a037ba8c001c/go.mod h1:iW6LK0+LE8fI+xo6rwHrwLARO8o5rt2I/eFbaUXiqh8=
+gitlab.com/elixxir/client v1.5.1-0.20220922221524-61839c3f5f74 h1:kUlKRhWJPqDUq6srHH3LO+S+JX4IrH2DVwgDT5iL+D8=
+gitlab.com/elixxir/client v1.5.1-0.20220922221524-61839c3f5f74/go.mod h1:iW6LK0+LE8fI+xo6rwHrwLARO8o5rt2I/eFbaUXiqh8=
 gitlab.com/elixxir/comms v0.0.4-0.20220913220502-eed192f654bd h1:2nHE7EoptSTBFjCxMeAveKT6urbguCwgg8Jx7XYEVe4=
 gitlab.com/elixxir/comms v0.0.4-0.20220913220502-eed192f654bd/go.mod h1:AO6XkMhaHJW8eXlgL5m3UUcJqsSP8F5Wm1GX+wyq/rw=
 gitlab.com/elixxir/crypto v0.0.0-20200804182833-984246dea2c4/go.mod h1:ucm9SFKJo+K0N2GwRRpaNr+tKXMIOVWzmyUD0SbOu2c=

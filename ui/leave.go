@@ -11,7 +11,6 @@ import (
 	"fmt"
 	"github.com/awesome-gocui/gocui"
 	"github.com/pkg/errors"
-	crypto "gitlab.com/elixxir/crypto/broadcast"
 	"gitlab.com/xx_network/primitives/id"
 	"time"
 )
@@ -32,24 +31,11 @@ func (chs *Channels) leaveChannel() func(*gocui.Gui, *gocui.View) error {
 			}()
 		}()
 
-		_, cy := chs.v.chatList.Cursor()
-		var c *crypto.Channel
-		if (cy >= 0) && (cy < len(v.ViewBufferLines())) {
-			c = chs.channels[uint64(cy)].c
-		} else {
-			return nil
-		}
+		chs.v.switchSubView(chs.v.leaveBox.subView)
+
+		c := chs.channels[chs.currentIndex].c
 
 		maxX, maxY := g.Size()
-		savedActiveArr := make([]string, len(chs.v.activeArr))
-		copy(savedActiveArr, chs.v.activeArr)
-		copy(savedActiveArr, chs.v.activeArr)
-
-		chs.v.activeArr = []string{
-			leaveGroupCancelButton, leaveGroupSubmitButton,
-		}
-		chs.v.active = 0
-
 		if v, err := g.SetView(leaveGroupBox, maxX/2-40, maxY/2-8, maxX/2+40, maxY/2+8, 0); err != nil {
 			if err != gocui.ErrUnknownView {
 				return errors.Errorf(
@@ -58,7 +44,7 @@ func (chs *Channels) leaveChannel() func(*gocui.Gui, *gocui.View) error {
 			v.Title = " Leave Channel "
 			v.Wrap = true
 			v.FrameRunes = []rune{'═', '║', '╔', '╗', '╚', '╝', '╠', '╣', '╦', '╩', '╬'}
-			v.BgColor = gocui.NewRGBColor(41, 40, 52)
+			// v.BgColor = gocui.Get256Color(236)
 
 			v.WriteString(fmt.Sprintf("\n\n      Are you sure you would like to leave the group %s?", c.Name))
 			v.WriteString(fmt.Sprintf("\n\n          ID: %s", c.ReceptionID))
@@ -73,21 +59,17 @@ func (chs *Channels) leaveChannel() func(*gocui.Gui, *gocui.View) error {
 			v.SelBgColor = gocui.ColorGreen
 			v.SelFgColor = gocui.ColorBlack
 
-			_, err = v.Write([]byte("      Yes      "))
-			if err != nil {
-				return errors.Errorf(
-					"Failed to write to %q: %+v", v.Name(), err)
-			}
+			v.WriteString(centerView("Yes", v))
 
 			err = g.SetKeybinding(
-				leaveGroupSubmitButton, gocui.MouseLeft, gocui.ModNone, chs.leaveGroup(c.ReceptionID, savedActiveArr))
+				leaveGroupSubmitButton, gocui.MouseLeft, gocui.ModNone, chs.leaveGroup(chs.currentIndex, c.ReceptionID))
 			if err != nil {
 				return errors.Errorf(
 					"failed to set key binding for left mouse button: %+v", err)
 			}
 
 			err = g.SetKeybinding(
-				leaveGroupSubmitButton, gocui.KeyEnter, gocui.ModNone, chs.leaveGroup(c.ReceptionID, savedActiveArr))
+				leaveGroupSubmitButton, gocui.KeyEnter, gocui.ModNone, chs.leaveGroup(chs.currentIndex, c.ReceptionID))
 			if err != nil {
 				return errors.Errorf(
 					"failed to set key binding for enter key: %+v", err)
@@ -103,21 +85,17 @@ func (chs *Channels) leaveChannel() func(*gocui.Gui, *gocui.View) error {
 			v.SelBgColor = gocui.ColorGreen
 			v.SelFgColor = gocui.ColorBlack
 
-			_, err = v.Write([]byte("      No       "))
-			if err != nil {
-				return errors.Errorf(
-					"Failed to write to %q: %+v", v.Name(), err)
-			}
+			v.WriteString(centerView("No", v))
 
 			err = g.SetKeybinding(
-				leaveGroupCancelButton, gocui.MouseLeft, gocui.ModNone, chs.closeLeaveBox(savedActiveArr))
+				leaveGroupCancelButton, gocui.MouseLeft, gocui.ModNone, chs.closeLeaveBox())
 			if err != nil {
 				return errors.Errorf(
 					"failed to set key binding for left mouse button: %+v", err)
 			}
 
 			err = g.SetKeybinding(
-				leaveGroupCancelButton, gocui.KeyEnter, gocui.ModNone, chs.closeLeaveBox(savedActiveArr))
+				leaveGroupCancelButton, gocui.KeyEnter, gocui.ModNone, chs.closeLeaveBox())
 			if err != nil {
 				return errors.Errorf(
 					"failed to set key binding for enter key: %+v", err)
@@ -133,10 +111,10 @@ func (chs *Channels) leaveChannel() func(*gocui.Gui, *gocui.View) error {
 	}
 }
 
-func (chs *Channels) closeLeaveBox(savedActiveArr []string) func(g *gocui.Gui, v *gocui.View) error {
+func (chs *Channels) closeLeaveBox() func(g *gocui.Gui, v *gocui.View) error {
 	return func(g *gocui.Gui, v *gocui.View) error {
-		chs.v.activeArr = savedActiveArr
-		chs.v.active = 0
+
+		chs.v.switchSubView(chs.v.main.subView)
 		g.Cursor = false
 		err := g.DeleteView(leaveGroupBox)
 		if err != nil {
@@ -157,7 +135,7 @@ func (chs *Channels) closeLeaveBox(savedActiveArr []string) func(g *gocui.Gui, v
 	}
 }
 
-func (chs *Channels) leaveGroup(chanID *id.ID, savedActiveArr []string) func(g *gocui.Gui, v *gocui.View) error {
+func (chs *Channels) leaveGroup(chanIndex int, chanID *id.ID) func(g *gocui.Gui, v *gocui.View) error {
 	return func(g *gocui.Gui, v *gocui.View) error {
 
 		submitButton, err := g.View(leaveGroupSubmitButton)
@@ -168,13 +146,18 @@ func (chs *Channels) leaveGroup(chanID *id.ID, savedActiveArr []string) func(g *
 
 		submitButton.Highlight = true
 
-		chs.m.LeaveChannel(chanID)
+		err = chs.m.RemoveChannel(chanID)
+		if err != nil {
+			return errors.Errorf("Failed to leave channel %s (index %d): %+v",
+				chanID, chanIndex, err)
+		}
 
-		// TODO: delete channel from UI
+		chs.v.switchSubView(chs.v.main.subView)
 
-		chs.v.activeArr = savedActiveArr
-		chs.v.active = 0
-		g.Cursor = false
+		// Delete channel fro UI
+		chs.Remove(chanIndex)
+		chs.UpdateChannelFeed(chs.currentIndex)
+
 		err = g.DeleteView(leaveGroupBox)
 		if err != nil {
 			return errors.Errorf(

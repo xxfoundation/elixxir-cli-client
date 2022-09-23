@@ -10,7 +10,7 @@ require (
 	github.com/spf13/jwalterweatherman v1.1.0
 	github.com/spf13/pflag v1.0.5
 	github.com/spf13/viper v1.12.0
-	gitlab.com/elixxir/client v1.5.1-0.20220922182248-a037ba8c001c
+	gitlab.com/elixxir/client v1.5.1-0.20220922221524-61839c3f5f74
 	gitlab.com/elixxir/crypto v0.0.7-0.20220920002307-5541473e9aa7
 	gitlab.com/xx_network/primitives v0.0.4-0.20220809193445-9fc0a5209548
 )

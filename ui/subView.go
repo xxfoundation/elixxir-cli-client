@@ -39,6 +39,7 @@ type mainView struct {
 
 	// List of windows
 	titleBox     *gocui.View
+	infoButton   *gocui.View
 	newButton    *gocui.View
 	joinButton   *gocui.View
 	leaveButton  *gocui.View
@@ -77,4 +78,15 @@ type leaveBoxView struct {
 	leaveGroupBox          *gocui.View
 	leaveGroupSubmitButton *gocui.View
 	leaveGroupCancelButton *gocui.View
+}
+
+type channelInfoView struct {
+	subView
+	expanded bool
+
+	// List of windows
+	channelInfoBox          *gocui.View
+	channelInfoBoxInside    *gocui.View
+	channelInfoExpandButton *gocui.View
+	channelInfoCloseButton  *gocui.View
 }

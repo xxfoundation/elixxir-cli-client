@@ -32,20 +32,11 @@ func (chs *Channels) newChannel() func(*gocui.Gui, *gocui.View) error {
 			}()
 		}()
 
-		maxX, maxY := g.Size()
-		savedActiveArr := make([]string, len(chs.v.activeArr))
-		copy(savedActiveArr, chs.v.activeArr)
-		copy(savedActiveArr, chs.v.activeArr)
-
-		chs.v.activeArr = []string{
-			newGroupNameInput, newGroupDescInput, newGroupCancelButton, newGroupSubmitButton,
-		}
-		chs.v.active = 0
-		chs.v.cursorList[newGroupNameInput] = struct{}{}
-		chs.v.cursorList[newGroupDescInput] = struct{}{}
+		chs.v.switchSubView(chs.v.newBox.subView)
 
 		g.Cursor = true
 
+		maxX, maxY := g.Size()
 		if v, err := g.SetView(newGroupBox, maxX/2-40, maxY/2-8, maxX/2+40, maxY/2+8, 0); err != nil {
 			if err != gocui.ErrUnknownView {
 				return errors.Errorf(
@@ -55,6 +46,8 @@ func (chs *Channels) newChannel() func(*gocui.Gui, *gocui.View) error {
 			v.Wrap = true
 
 			v.FrameRunes = []rune{'═', '║', '╔', '╗', '╚', '╝', '╠', '╣', '╦', '╩', '╬'}
+
+			chs.v.newBox.newGroupBox = v
 		}
 
 		if v, err := g.SetView(newGroupNameInput, maxX/2-40+2, maxY/2-8+2, maxX/2+40-2, maxY/2-8+4, 0); err != nil {
@@ -66,6 +59,8 @@ func (chs *Channels) newChannel() func(*gocui.Gui, *gocui.View) error {
 			v.Wrap = true
 			v.Editable = true
 
+			chs.v.newBox.newGroupNameInput = v
+
 			err = g.SetKeybinding(v.Name(), gocui.KeyArrowUp, gocui.ModNone, chs.scrollView(-1))
 			if err != nil {
 				return errors.Errorf(
@@ -97,12 +92,13 @@ func (chs *Channels) newChannel() func(*gocui.Gui, *gocui.View) error {
 			}
 
 			err = g.SetKeybinding(
-				v.Name(), gocui.KeyEnter, gocui.ModNone, chs.newGroup(savedActiveArr))
+				v.Name(), gocui.KeyEnter, gocui.ModNone, chs.newGroup())
 			if err != nil {
 				return errors.Errorf(
 					"failed to set key binding for enter key: %+v", err)
 			}
 		}
+
 		if v, err := g.SetView(newGroupDescInput, maxX/2-40+2, maxY/2-8+5, maxX/2+40-2, maxY/2-8+12, 0); err != nil {
 			if err != gocui.ErrUnknownView {
 				return errors.Errorf(
@@ -112,6 +108,8 @@ func (chs *Channels) newChannel() func(*gocui.Gui, *gocui.View) error {
 			v.Wrap = true
 			v.Editable = true
 
+			chs.v.newBox.newGroupDescInput = v
+
 			err = g.SetKeybinding(v.Name(), gocui.KeyArrowUp, gocui.ModNone, chs.scrollView(-1))
 			if err != nil {
 				return errors.Errorf(
@@ -143,7 +141,7 @@ func (chs *Channels) newChannel() func(*gocui.Gui, *gocui.View) error {
 			}
 
 			err = g.SetKeybinding(
-				v.Name(), gocui.KeyEnter, gocui.ModNone, chs.newGroup(savedActiveArr))
+				v.Name(), gocui.KeyEnter, gocui.ModNone, chs.newGroup())
 			if err != nil {
 				return errors.Errorf(
 					"failed to set key binding for enter key: %+v", err)
@@ -159,21 +157,19 @@ func (chs *Channels) newChannel() func(*gocui.Gui, *gocui.View) error {
 			v.SelBgColor = gocui.ColorGreen
 			v.SelFgColor = gocui.ColorBlack
 
-			_, err = v.Write([]byte("    Cancel    "))
-			if err != nil {
-				return errors.Errorf(
-					"Failed to write to %q: %+v", v.Name(), err)
-			}
+			chs.v.newBox.newGroupCancelButton = v
+
+			v.WriteString(centerView("Cancel", v))
 
 			err = g.SetKeybinding(
-				newGroupCancelButton, gocui.MouseLeft, gocui.ModNone, chs.closeNewBox(savedActiveArr))
+				newGroupCancelButton, gocui.MouseLeft, gocui.ModNone, chs.closeNewBox())
 			if err != nil {
 				return errors.Errorf(
 					"failed to set key binding for left mouse button: %+v", err)
 			}
 
 			err = g.SetKeybinding(
-				newGroupCancelButton, gocui.KeyEnter, gocui.ModNone, chs.closeNewBox(savedActiveArr))
+				newGroupCancelButton, gocui.KeyEnter, gocui.ModNone, chs.closeNewBox())
 			if err != nil {
 				return errors.Errorf(
 					"failed to set key binding for enter key: %+v", err)
@@ -189,21 +185,19 @@ func (chs *Channels) newChannel() func(*gocui.Gui, *gocui.View) error {
 			v.SelBgColor = gocui.ColorGreen
 			v.SelFgColor = gocui.ColorBlack
 
-			_, err = v.Write([]byte("      New      "))
-			if err != nil {
-				return errors.Errorf(
-					"Failed to write to %q: %+v", v.Name(), err)
-			}
+			chs.v.newBox.newGroupSubmitButton = v
+
+			v.WriteString(centerView("New", v))
 
 			err = g.SetKeybinding(
-				newGroupSubmitButton, gocui.MouseLeft, gocui.ModNone, chs.newGroup(savedActiveArr))
+				newGroupSubmitButton, gocui.MouseLeft, gocui.ModNone, chs.newGroup())
 			if err != nil {
 				return errors.Errorf(
 					"failed to set key binding for left mouse button: %+v", err)
 			}
 
 			err = g.SetKeybinding(
-				newGroupSubmitButton, gocui.KeyEnter, gocui.ModNone, chs.newGroup(savedActiveArr))
+				newGroupSubmitButton, gocui.KeyEnter, gocui.ModNone, chs.newGroup())
 			if err != nil {
 				return errors.Errorf(
 					"failed to set key binding for enter key: %+v", err)
@@ -219,12 +213,11 @@ func (chs *Channels) newChannel() func(*gocui.Gui, *gocui.View) error {
 	}
 }
 
-func (chs *Channels) closeNewBox(savedActiveArr []string) func(g *gocui.Gui, v *gocui.View) error {
+func (chs *Channels) closeNewBox() func(g *gocui.Gui, v *gocui.View) error {
 	return func(g *gocui.Gui, v *gocui.View) error {
 		g.Cursor = false
 
-		chs.v.activeArr = savedActiveArr
-		chs.v.active = 0
+		chs.v.switchSubView(chs.v.main.subView)
 		err := g.DeleteView(newGroupBox)
 		if err != nil {
 			return errors.Errorf(
@@ -254,50 +247,29 @@ func (chs *Channels) closeNewBox(savedActiveArr []string) func(g *gocui.Gui, v *
 	}
 }
 
-func (chs *Channels) newGroup(savedActiveArr []string) func(g *gocui.Gui, v *gocui.View) error {
+func (chs *Channels) newGroup() func(g *gocui.Gui, v *gocui.View) error {
 	return func(g *gocui.Gui, v *gocui.View) error {
-		nameV, err := g.View(newGroupNameInput)
-		if err != nil {
-			return errors.Errorf(
-				"Failed to get view %q: %+v", newGroupNameInput, err)
-		}
-		nameBuff := strings.TrimSpace(nameV.Buffer())
-
+		nameBuff := strings.TrimSpace(chs.v.newBox.newGroupNameInput.Buffer())
 		if len(nameBuff) == 0 {
 			return nil
 		}
-		descV, err := g.View(newGroupDescInput)
-		if err != nil {
-			return errors.Errorf(
-				"Failed to get view %q: %+v", newGroupDescInput, err)
-		}
-		descBuff := strings.TrimSpace(descV.Buffer())
 
+		descBuff := strings.TrimSpace(chs.v.newBox.newGroupDescInput.Buffer())
 		if len(nameBuff) == 0 || len(descBuff) == 0 {
 			return nil
 		}
 
-		submitButton, err := g.View(newGroupSubmitButton)
-		if err != nil {
-			return errors.Errorf(
-				"Failed to get view %q: %+v", newGroupSubmitButton, err)
-		}
-
-		submitButton.Highlight = true
+		chs.v.newBox.newGroupSubmitButton.Highlight = true
 		defer func() {
 			go func() {
 				time.Sleep(500 * time.Millisecond)
-				submitButton.Highlight = false
+				chs.v.newBox.newGroupSubmitButton.Highlight = false
 			}()
 		}()
-		newGroupBoxV, err := g.View(newGroupBox)
-		if err != nil {
-			return errors.Errorf("Failed to get view %q: %+v", newGroupBox, err)
-		}
 
 		chanIO, err := chs.m.GenerateChannel(nameBuff, descBuff)
 		if err != nil {
-			newGroupBoxV.WriteString(err.Error())
+			chs.v.newBox.newGroupBox.WriteString(err.Error())
 			return errors.Errorf(
 				"Failed to generate new channel %q: %+v", nameBuff, err)
 		}
@@ -305,9 +277,9 @@ func (chs *Channels) newGroup(savedActiveArr []string) func(g *gocui.Gui, v *goc
 		// TODO: fix message size
 		chs.Add(chanIO.ReceivedMsgChan, chanIO.SendFn, "", 1000, chanIO.C)
 
-		chs.v.activeArr = savedActiveArr
-		chs.v.active = 0
+		chs.v.switchSubView(chs.v.main.subView)
 		g.Cursor = false
+
 		err = g.DeleteView(newGroupBox)
 		if err != nil {
 			return errors.Errorf(

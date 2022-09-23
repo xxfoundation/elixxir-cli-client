@@ -62,32 +62,27 @@ func NewChannelManager(net *xxdk.Cmix, username string) *Manager {
 	return m
 }
 
+func (m *Manager) Username() string {
+	return m.username
+}
+
 func (m *Manager) ReplayChannels() ([]*ChannelIO, error) {
 	channelList := m.chanMan.GetChannels()
 	chans := make([]*ChannelIO, len(channelList))
-	for i, chanID := range channelList {
+	for i := range channelList {
+		chanID := channelList[i]
 		c, err := m.chanMan.GetChannel(chanID)
 		if err != nil {
 			return nil, errors.Errorf(
 				"Failed to get the channel with ID %s: %+v", chanID, err)
 		}
+		receiveChan := make(chan string, 125)
+		sendFn := m.newSendFunc(chanID)
 		cio := &ChannelIO{
 			ChannelID:       chanID,
-			ReceivedMsgChan: make(chan string, 125),
-			SendFn: func(payload string, timestamp time.Time) error {
-				// TODO: Figure out correct value for validUntil.
-				msgID, rnd, ephID, err := m.chanMan.SendMessage(
-					chanID, payload, 30000, cmix.GetDefaultCMIXParams())
-				if err != nil {
-					return errors.Errorf(
-						"Failed to send message to channel %s: %+v", chanID, err)
-				}
-
-				jww.INFO.Printf("Send message %s to channel %s on round %d",
-					msgID, chanID, rnd, ephID)
-				return nil
-			},
-			C: c,
+			ReceivedMsgChan: receiveChan,
+			SendFn:          sendFn,
+			C:               c,
 		}
 
 		m.chans[*chanID] = cio
@@ -101,6 +96,22 @@ func (m *Manager) ReplayChannels() ([]*ChannelIO, error) {
 	}
 
 	return chans, nil
+}
+
+func (m *Manager) newSendFunc(chanID *id.ID) SendMessage {
+	return func(payload string, timestamp time.Time) error {
+		// TODO: Figure out correct value for validUntil.
+		msgID, rnd, ephID, err := m.chanMan.SendMessage(
+			chanID, payload, 30000, cmix.GetDefaultCMIXParams())
+		if err != nil {
+			return errors.Errorf(
+				"Failed to send message to channel %s: %+v", chanID, err)
+		}
+
+		jww.INFO.Printf("Send message %s to channel %s on round %d",
+			msgID, chanID, rnd, ephID)
+		return nil
+	}
 }
 
 func (m *Manager) GenerateChannel(name, description string) (*ChannelIO, error) {
@@ -131,24 +142,15 @@ func (m *Manager) AddChannel(prettyPrint string) (*ChannelIO, error) {
 	m.chans[*c.ReceptionID] = &ChannelIO{
 		ChannelID:       c.ReceptionID,
 		ReceivedMsgChan: make(chan string, 125),
-		SendFn: func(payload string, timestamp time.Time) error {
-			// TODO: Figure out correct value for validUntil.
-			msgID, rnd, ephID, err := m.chanMan.SendMessage(
-				c.ReceptionID, payload, 30000, cmix.GetDefaultCMIXParams())
-			if err != nil {
-				return errors.Errorf(
-					"Failed to send message to channel %s: %+v",
-					c.ReceptionID, err)
-			}
-
-			jww.INFO.Printf("Send message %s to channel %s on round %d",
-				msgID, c.ReceptionID, rnd, ephID)
-			return nil
-		},
-		C: c,
+		SendFn:          m.newSendFunc(c.ReceptionID),
+		C:               c,
 	}
 
 	return m.chans[*c.ReceptionID], nil
+}
+
+func (m *Manager) RemoveChannel(channelID *id.ID) error {
+	return m.chanMan.LeaveChannel(channelID)
 }
 
 func (m *Manager) JoinChannel(*crypto.Channel) {}

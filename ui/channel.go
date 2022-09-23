@@ -38,7 +38,7 @@ func (ch *channel) updateChatFeed(updateFeed chan struct{}) {
 	for {
 		select {
 		case r := <-ch.receivedMsgChan:
-			jww.INFO.Printf("Got broadcast for channel %d (%s): %q",
+			jww.INFO.Printf("Got broadcast for channel %s (%s): %q",
 				ch.c.Name, ch.c.ReceptionID, r)
 
 			ch.mux.Lock()

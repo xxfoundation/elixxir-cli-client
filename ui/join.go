@@ -31,19 +31,11 @@ func (chs *Channels) joinChannel() func(*gocui.Gui, *gocui.View) error {
 			}()
 		}()
 
-		maxX, maxY := g.Size()
-		savedActiveArr := make([]string, len(chs.v.activeArr))
-		copy(savedActiveArr, chs.v.activeArr)
-		copy(savedActiveArr, chs.v.activeArr)
-
-		chs.v.activeArr = []string{
-			joinGroupInput, joinGroupCancelButton, joinGroupSubmitButton,
-		}
-		chs.v.active = 0
-		chs.v.cursorList[joinGroupInput] = struct{}{}
+		chs.v.switchSubView(chs.v.joinBox.subView)
 
 		g.Cursor = true
 
+		maxX, maxY := g.Size()
 		if v, err := g.SetView(joinGroupBox, maxX/2-40, maxY/2-8, maxX/2+40, maxY/2+8, 0); err != nil {
 			if err != gocui.ErrUnknownView {
 				return errors.Errorf(
@@ -94,7 +86,7 @@ func (chs *Channels) joinChannel() func(*gocui.Gui, *gocui.View) error {
 			}
 
 			err = g.SetKeybinding(
-				v.Name(), gocui.KeyEnter, gocui.ModNone, chs.joinGroup(savedActiveArr))
+				v.Name(), gocui.KeyEnter, gocui.ModNone, chs.joinGroup())
 			if err != nil {
 				return errors.Errorf(
 					"failed to set key binding for enter key: %+v", err)
@@ -110,21 +102,17 @@ func (chs *Channels) joinChannel() func(*gocui.Gui, *gocui.View) error {
 			v.SelBgColor = gocui.ColorGreen
 			v.SelFgColor = gocui.ColorBlack
 
-			_, err = v.Write([]byte("    Cancel    "))
-			if err != nil {
-				return errors.Errorf(
-					"Failed to write to %q: %+v", v.Name(), err)
-			}
+			v.WriteString(centerView("Cancel", v))
 
 			err = g.SetKeybinding(
-				joinGroupCancelButton, gocui.MouseLeft, gocui.ModNone, chs.closeJoinBox(savedActiveArr))
+				joinGroupCancelButton, gocui.MouseLeft, gocui.ModNone, chs.closeJoinBox())
 			if err != nil {
 				return errors.Errorf(
 					"failed to set key binding for left mouse button: %+v", err)
 			}
 
 			err = g.SetKeybinding(
-				joinGroupCancelButton, gocui.KeyEnter, gocui.ModNone, chs.closeJoinBox(savedActiveArr))
+				joinGroupCancelButton, gocui.KeyEnter, gocui.ModNone, chs.closeJoinBox())
 			if err != nil {
 				return errors.Errorf(
 					"failed to set key binding for enter key: %+v", err)
@@ -140,21 +128,17 @@ func (chs *Channels) joinChannel() func(*gocui.Gui, *gocui.View) error {
 			v.SelBgColor = gocui.ColorGreen
 			v.SelFgColor = gocui.ColorBlack
 
-			_, err = v.Write([]byte("      Join      "))
-			if err != nil {
-				return errors.Errorf(
-					"Failed to write to %q: %+v", v.Name(), err)
-			}
+			v.WriteString(centerView("Join", v))
 
 			err = g.SetKeybinding(
-				joinGroupSubmitButton, gocui.MouseLeft, gocui.ModNone, chs.joinGroup(savedActiveArr))
+				joinGroupSubmitButton, gocui.MouseLeft, gocui.ModNone, chs.joinGroup())
 			if err != nil {
 				return errors.Errorf(
 					"failed to set key binding for left mouse button: %+v", err)
 			}
 
 			err = g.SetKeybinding(
-				joinGroupSubmitButton, gocui.KeyEnter, gocui.ModNone, chs.joinGroup(savedActiveArr))
+				joinGroupSubmitButton, gocui.KeyEnter, gocui.ModNone, chs.joinGroup())
 			if err != nil {
 				return errors.Errorf(
 					"failed to set key binding for enter key: %+v", err)
@@ -170,10 +154,9 @@ func (chs *Channels) joinChannel() func(*gocui.Gui, *gocui.View) error {
 	}
 }
 
-func (chs *Channels) closeJoinBox(savedActiveArr []string) func(g *gocui.Gui, v *gocui.View) error {
+func (chs *Channels) closeJoinBox() func(g *gocui.Gui, v *gocui.View) error {
 	return func(g *gocui.Gui, v *gocui.View) error {
-		chs.v.activeArr = savedActiveArr
-		chs.v.active = 0
+		chs.v.switchSubView(chs.v.main.subView)
 		g.Cursor = false
 		err := g.DeleteView(joinGroupBox)
 		if err != nil {
@@ -199,7 +182,7 @@ func (chs *Channels) closeJoinBox(savedActiveArr []string) func(g *gocui.Gui, v 
 	}
 }
 
-func (chs *Channels) joinGroup(savedActiveArr []string) func(g *gocui.Gui, v *gocui.View) error {
+func (chs *Channels) joinGroup() func(g *gocui.Gui, v *gocui.View) error {
 	return func(g *gocui.Gui, v *gocui.View) error {
 		v, err := g.View(joinGroupInput)
 		if err != nil {
@@ -235,8 +218,7 @@ func (chs *Channels) joinGroup(savedActiveArr []string) func(g *gocui.Gui, v *go
 		// TODO: fix message size
 		chs.Add(chanIO.ReceivedMsgChan, chanIO.SendFn, "", 1000, chanIO.C)
 
-		chs.v.activeArr = savedActiveArr
-		chs.v.active = 0
+		chs.v.switchSubView(chs.v.main.subView)
 		g.Cursor = false
 		err = g.DeleteView(joinGroupBox)
 		if err != nil {

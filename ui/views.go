@@ -2,7 +2,6 @@ package ui
 
 import (
 	"fmt"
-	"github.com/awesome-gocui/gocui"
 	jww "github.com/spf13/jwalterweatherman"
 	crypto "gitlab.com/elixxir/crypto/broadcast"
 )
@@ -10,23 +9,12 @@ import (
 type views struct {
 	subView
 
-	// The ID of the view in activeArr that is currently active/selected
-	active int
-
 	// List of windows
-	main         *mainView
-	newBox       *newBoxView
-	joinBox      *joinBoxView
-	leaveBox     *leaveBoxView
-	titleBox     *gocui.View
-	newButton    *gocui.View
-	joinButton   *gocui.View
-	leaveButton  *gocui.View
-	chatList     *gocui.View
-	channelFeed  *gocui.View
-	messageInput *gocui.View
-	sendButton   *gocui.View
-	messageCount *gocui.View
+	main           *mainView
+	newBox         *newBoxView
+	joinBox        *joinBoxView
+	leaveBox       *leaveBoxView
+	channelInfoBox *channelInfoView
 }
 
 func newViews() *views {
@@ -34,11 +22,11 @@ func newViews() *views {
 		subView: newSubView(),
 		main: &mainView{
 			subView: subView{
-				active: 4,
-				list: []string{titleBox, newButton, joinButton, leaveButton,
-					chatList, channelFeed, messageInput, sendButton,
-					messageCount},
-				activeArr: []string{titleBox, newButton, joinButton,
+				active: 5,
+				list: []string{titleBox, infoButton, newButton, joinButton,
+					leaveButton, chatList, channelFeed, messageInput,
+					sendButton, messageCount},
+				activeArr: []string{titleBox, infoButton, newButton, joinButton,
 					leaveButton, chatList, channelFeed, messageInput,
 					sendButton},
 				cursorList: map[string]struct{}{
@@ -83,6 +71,16 @@ func newViews() *views {
 				cursorList: map[string]struct{}{},
 			},
 		},
+		channelInfoBox: &channelInfoView{
+			subView: subView{
+				active: 0,
+				list: []string{channelInfoBox, channelInfoBoxInside,
+					channelInfoExpandButton, channelInfoCloseButton},
+				activeArr: []string{channelInfoBoxInside, channelInfoExpandButton,
+					channelInfoCloseButton},
+				cursorList: map[string]struct{}{},
+			},
+		},
 	}
 
 	return v
@@ -101,8 +99,8 @@ func (v *views) switchSubView(sb subView) {
 }
 
 func (v *views) writeChannelInfo(c *crypto.Channel) bool {
-	v.titleBox.Clear()
-	_, err := fmt.Fprintf(v.titleBox,
+	v.main.titleBox.Clear()
+	_, err := fmt.Fprintf(v.main.titleBox,
 		"\x1B[38;5;255m"+"Name:"+"\x1B[38;5;250m\n"+
 			" %s\n\n"+
 			"\x1B[38;5;255m"+"Description:"+"\x1B[38;5;250m\n"+
@@ -116,7 +114,7 @@ func (v *views) writeChannelInfo(c *crypto.Channel) bool {
 		jww.FATAL.Panicf("%+v", err)
 	}
 
-	_, err = fmt.Fprintf(v.titleBox, "Controls:\n"+
+	_, err = fmt.Fprintf(v.main.titleBox, "Controls:\n"+
 		"\x1B[38;5;250m"+
 		" Ctrl+C  exit\n"+
 		" Tab     Switch view\n"+

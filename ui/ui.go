@@ -19,6 +19,7 @@ import (
 
 const (
 	titleBox     = "titleBox"
+	infoButton   = "infoButton"
 	newButton    = "newButton"
 	joinButton   = "joinButton"
 	leaveButton  = "leaveButton"
@@ -44,11 +45,10 @@ func (chs *Channels) MakeUI() {
 	g.SelFrameColor = gocui.ColorGreen
 	g.Highlight = true
 
-	chs.v.activeArr = []string{newButton, joinButton, leaveButton, chatList, channelFeed, messageInput, sendButton, titleBox}
-	chs.v.cursorList[messageInput] = struct{}{}
-	chs.v.active = 2
+	chs.v.switchSubView(chs.v.main.subView)
+	// g.SetCurrentView(chs.v.activeArr[chs.v.active])
 
-	g.SetManagerFunc(chs.makeLayout("<USERNAME>", 1024))
+	g.SetManagerFunc(chs.makeLayout(chs.username, 1024))
 
 	err = chs.initKeybindings(g)
 	if err != nil {
@@ -65,7 +65,7 @@ func (chs *Channels) makeLayout(username string, maxMessageLen int) func(g *gocu
 	return func(g *gocui.Gui) error {
 		maxX, maxY := g.Size()
 
-		if v, err := g.SetView(titleBox, maxX-25, 0, maxX-1, maxY-7, 0); err != nil {
+		if v, err := g.SetView(titleBox, maxX-25, 0, maxX-1, maxY-10, 0); err != nil {
 			if err != gocui.ErrUnknownView {
 				return errors.Errorf("Failed to set view %q: %+v", titleBox, err)
 			}
@@ -88,7 +88,19 @@ func (chs *Channels) makeLayout(username string, maxMessageLen int) func(g *gocu
 					"Failed to write to view %q: %+v", v.Name(), err)
 			}
 
-			chs.v.titleBox = v
+			chs.v.main.titleBox = v
+		}
+
+		if v, err := g.SetView(infoButton, maxX-25, maxY-9, maxX-1, maxY-7, 0); err != nil {
+			if err != gocui.ErrUnknownView {
+				return errors.Errorf("Failed to set view %q: %+v", infoButton, err)
+			}
+			v.SelBgColor = gocui.ColorGreen
+			v.SelFgColor = gocui.ColorBlack
+
+			v.WriteString(centerView("Channel Info", v))
+
+			chs.v.main.infoButton = v
 		}
 
 		if v, err := g.SetView(newButton, 0, 0, 8, 2, 0); err != nil {
@@ -100,12 +112,9 @@ func (chs *Channels) makeLayout(username string, maxMessageLen int) func(g *gocu
 			v.SelBgColor = gocui.ColorGreen
 			v.SelFgColor = gocui.ColorBlack
 
-			_, err = v.Write([]byte("  New   "))
-			if err != nil {
-				return errors.Errorf(
-					"Failed to write to %q: %+v", v.Name(), err)
-			}
-			chs.v.newButton = v
+			v.WriteString(centerView("New", v))
+
+			chs.v.main.newButton = v
 		}
 
 		if v, err := g.SetView(joinButton, 9, 0, 17, 2, 0); err != nil {
@@ -117,12 +126,9 @@ func (chs *Channels) makeLayout(username string, maxMessageLen int) func(g *gocu
 			v.SelBgColor = gocui.ColorGreen
 			v.SelFgColor = gocui.ColorBlack
 
-			_, err = v.Write([]byte(" Join  "))
-			if err != nil {
-				return errors.Errorf(
-					"Failed to write to %q: %+v", v.Name(), err)
-			}
-			chs.v.joinButton = v
+			v.WriteString(centerView("Join", v))
+
+			chs.v.main.joinButton = v
 		}
 
 		if v, err := g.SetView(leaveButton, 18, 0, 26, 2, 0); err != nil {
@@ -134,12 +140,9 @@ func (chs *Channels) makeLayout(username string, maxMessageLen int) func(g *gocu
 			v.SelBgColor = gocui.ColorGreen
 			v.SelFgColor = gocui.ColorBlack
 
-			_, err = v.Write([]byte(" Leave  "))
-			if err != nil {
-				return errors.Errorf(
-					"Failed to write to %q: %+v", v.Name(), err)
-			}
-			chs.v.leaveButton = v
+			v.WriteString(centerView("Leave", v))
+
+			chs.v.main.leaveButton = v
 		}
 
 		if v, err := g.SetView(chatList, 0, 3, 26, maxY-1, 0); err != nil {
@@ -148,7 +151,7 @@ func (chs *Channels) makeLayout(username string, maxMessageLen int) func(g *gocu
 					"Failed to set view %q: %+v", chatList, err)
 			}
 			v.Title = " Chat List [F3] "
-			v.Wrap = true
+			v.Wrap = false
 			v.Autoscroll = true
 
 			if _, err = g.SetCurrentView(v.Name()); err != nil {
@@ -156,7 +159,7 @@ func (chs *Channels) makeLayout(username string, maxMessageLen int) func(g *gocu
 					"Failed to set the current view to %q: %+v", v.Name(), err)
 			}
 
-			chs.v.chatList = v
+			chs.v.main.chatList = v
 		}
 
 		if v, err := g.SetView(channelFeed, 27, 0, maxX-26, maxY-7, 0); err != nil {
@@ -168,7 +171,7 @@ func (chs *Channels) makeLayout(username string, maxMessageLen int) func(g *gocu
 			v.Wrap = true
 			v.Autoscroll = true
 
-			chs.v.channelFeed = v
+			chs.v.main.channelFeed = v
 		}
 
 		if v, err := g.SetView(messageInput, 27, maxY-6, maxX-9, maxY-1, 0); err != nil {
@@ -180,7 +183,7 @@ func (chs *Channels) makeLayout(username string, maxMessageLen int) func(g *gocu
 			v.Editable = true
 			v.Wrap = true
 
-			chs.v.messageInput = v
+			chs.v.main.messageInput = v
 		}
 
 		if v, err := g.SetView(messageCount, maxX-8, maxY-6, maxX-1, maxY-3, 0); err != nil {
@@ -236,7 +239,7 @@ func (chs *Channels) makeLayout(username string, maxMessageLen int) func(g *gocu
 				}
 			}()
 
-			chs.v.messageCount = v
+			chs.v.main.messageCount = v
 		}
 
 		if v, err := g.SetView(sendButton, maxX-8, maxY-3, maxX-1, maxY-1, 0); err != nil {
@@ -253,7 +256,7 @@ func (chs *Channels) makeLayout(username string, maxMessageLen int) func(g *gocu
 				return errors.Errorf(
 					"Failed to write to %q: %+v", v.Name(), err)
 			}
-			chs.v.sendButton = v
+			chs.v.main.sendButton = v
 		}
 
 		return nil
@@ -383,6 +386,20 @@ func (chs *Channels) initKeybindings(g *gocui.Gui) error {
 			"failed to set key binding for enter key: %+v", err)
 	}
 
+	err = g.SetKeybinding(
+		infoButton, gocui.MouseLeft, gocui.ModNone, chs.channelInfoBox(false))
+	if err != nil {
+		return errors.Errorf(
+			"failed to set key binding for left mouse button: %+v", err)
+	}
+
+	err = g.SetKeybinding(
+		infoButton, gocui.KeyEnter, gocui.ModNone, chs.channelInfoBox(false))
+	if err != nil {
+		return errors.Errorf(
+			"failed to set key binding for enter key: %+v", err)
+	}
+
 	for _, v := range chs.v.activeArr {
 		err = g.SetKeybinding(v, gocui.KeyArrowUp, gocui.ModNone, chs.scrollView(-1))
 		if err != nil {
@@ -428,6 +445,12 @@ func (chs *Channels) switchActive() func(*gocui.Gui, *gocui.View) error {
 
 		g.Cursor = chs.v.inCursorList(v.Name())
 
+		for i, vName := range chs.v.activeArr {
+			if vName == v.Name() {
+				chs.v.active = i
+			}
+		}
+
 		if v.Name() == chatList {
 			cx, cy := v.Cursor()
 			if (cy >= 0) && (cy < len(v.ViewBufferLines())) {
@@ -439,7 +462,7 @@ func (chs *Channels) switchActive() func(*gocui.Gui, *gocui.View) error {
 				//
 				// jww.INFO.Printf("cy: %d   l: %s", cy, l)
 				// chs.UpdateChannelFeed(unmarshalChannelID(l))
-				chs.UpdateChannelFeed(uint64(cy))
+				chs.UpdateChannelFeed(cy)
 			} else if cy >= len(v.ViewBufferLines()) {
 				err := v.SetCursor(cx, len(v.ViewBufferLines()))
 				if err != nil {
@@ -462,6 +485,12 @@ func (chs *Channels) switchActiveTo(name string) func(g *gocui.Gui, v *gocui.Vie
 				"failed to set %s as current view: %+v", name, err)
 		}
 
+		for i, vName := range chs.v.activeArr {
+			if vName == name {
+				chs.v.active = i
+			}
+		}
+
 		g.Cursor = chs.v.inCursorList(v.Name())
 
 		return nil
@@ -476,52 +505,52 @@ func backSpace(_ *gocui.Gui, v *gocui.View) error {
 }
 
 func (chs *Channels) readBuffs() func(*gocui.Gui, *gocui.View) error {
-	return func(g *gocui.Gui, _ *gocui.View) error {
-		if chs.Len() == 0 {
-			return nil
-		}
-		v, err := g.View(messageInput)
-		if err != nil {
-			return errors.Errorf(
-				"Failed to get view %q: %+v", messageInput, err)
-		}
-		buff := strings.TrimSpace(v.Buffer())
-		c := chs.GetCurrent()
+	return func(g *gocui.Gui, v *gocui.View) error {
+		chs.v.main.messageInput.Editable = false
 
-		if len(buff) == 0 || len(buff) > c.maxMessageLen {
-			return nil
-		}
-
-		chs.v.sendButton.Highlight = true
+		chs.v.main.sendButton.Highlight = true
 		defer func() {
 			go func() {
+				chs.v.main.messageInput.Editable = true
 				time.Sleep(500 * time.Millisecond)
-				chs.v.sendButton.Highlight = false
+				chs.v.main.sendButton.Highlight = false
 			}()
 		}()
 
-		timestamp := netTime.Now()
-		err = c.sendFn(buff, timestamp)
-		if err != nil {
-			return errors.Errorf("Failed to send message: %+v", err)
+		buffSave := chs.v.main.messageInput.Buffer()
+		chs.v.main.messageInput.Clear()
+
+		if chs.Len() == 0 {
+			chs.v.main.messageInput.WriteString(buffSave)
+			return nil
+		}
+		buff := strings.TrimSpace(buffSave)
+		c := chs.GetCurrent()
+
+		if len(buff) == 0 || len(buff) > c.maxMessageLen {
+			v.WriteString(buffSave)
+			jww.CRITICAL.Printf("readBuffs not sending: invalid msg")
+			return nil
 		}
 
-		usernameField := "\x1b[38;5;255m" + c.myUsername + " (you) \x1b[0m"
-		timestampField := "\x1b[38;5;245m[sent " + timestamp.Format("3:04:05 pm") + "]\x1b[0m"
-		messageField := "\x1b[38;5;250m" + strings.TrimSpace(buff) + "\x1b[0m"
-		message := usernameField + " " + timestampField + "\n" + messageField
+		go func() {
+			timestamp := netTime.Now()
+			err := c.sendFn(buff, timestamp)
+			if err != nil {
+				jww.FATAL.Panicf("Failed to send message: %+v", err)
+			}
+		}()
+		// err := c.sendFn(buff, timestamp)
+		// if err != nil {
+		// 	return errors.Errorf("Failed to send message: %+v", err)
+		// }
 
-		c.receivedMsgChan <- message
+		// usernameField := "\x1b[38;5;255m" + c.myUsername + " (you) \x1b[0m"
+		// timestampField := "\x1b[38;5;245m[sent " + timestamp.Format("3:04:05 pm") + "]\x1b[0m"
+		// messageField := "\x1b[38;5;250m" + strings.TrimSpace(buff) + "\x1b[0m"
+		// message := usernameField + " " + timestampField + "\n" + messageField
 
-		v.Clear()
-		err = v.SetOrigin(0, 0)
-		if err != nil {
-			return errors.Errorf("Failed to set origin back to (0, 0): %+v", err)
-		}
-		err = v.SetCursor(0, 0)
-		if err != nil {
-			return errors.Errorf("Failed to set cursor back to (0, 0): %+v", err)
-		}
+		// c.receivedMsgChan <- message
 
 		messageCountView, err := g.View(messageCount)
 		if err != nil {
@@ -553,9 +582,9 @@ func (chs *Channels) scrollView(dy int) func(*gocui.Gui, *gocui.View) error {
 			_, height := v.Size()
 
 			if v.Name() == chatList {
-				cy := int(chs.currentIndex)
+				cy := chs.currentIndex
 				if (dy+cy >= 0) && (dy+cy < len(v.ViewBufferLines())) {
-					chs.UpdateChannelFeed(uint64(dy + cy))
+					chs.UpdateChannelFeed(dy + cy)
 				}
 			}
 
@@ -571,6 +600,7 @@ func (chs *Channels) scrollView(dy int) func(*gocui.Gui, *gocui.View) error {
 }
 
 func (chs *Channels) nextView(g *gocui.Gui, _ *gocui.View) error {
+	// TODO: get current view first
 	nextIndex := (chs.v.active + 1) % len(chs.v.activeArr)
 	name := chs.v.activeArr[nextIndex]
 
