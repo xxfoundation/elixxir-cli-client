@@ -38,7 +38,7 @@ func NewChannels(m *client.Manager) *Channels {
 		channels:     []*channel{},
 		currentIndex: 0,
 		nextIndex:    0,
-		updateFeed:   make(chan struct{}, 25),
+		updateFeed:   make(chan struct{}, 100),
 		username:     m.Username(),
 		useClipboard: true,
 	}

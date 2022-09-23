@@ -11,7 +11,6 @@ import (
 	"fmt"
 	"github.com/awesome-gocui/gocui"
 	"github.com/pkg/errors"
-	crypto "gitlab.com/elixxir/crypto/broadcast"
 	"golang.design/x/clipboard"
 	"strconv"
 	"strings"
@@ -179,14 +178,14 @@ func (chs *Channels) channelInfoBox(expand bool) func(*gocui.Gui, *gocui.View) e
 				v.WriteString(centerView("Copy", v))
 
 				err = g.SetKeybinding(
-					channelInfoCopyButton, gocui.MouseLeft, gocui.ModNone, chs.copyPrettyPrint(c))
+					channelInfoCopyButton, gocui.MouseLeft, gocui.ModNone, chs.copyPrettyPrint())
 				if err != nil {
 					return errors.Errorf(
 						"failed to set key binding for left mouse button: %+v", err)
 				}
 
 				err = g.SetKeybinding(
-					channelInfoCopyButton, gocui.KeyEnter, gocui.ModNone, chs.copyPrettyPrint(c))
+					channelInfoCopyButton, gocui.KeyEnter, gocui.ModNone, chs.copyPrettyPrint())
 				if err != nil {
 					return errors.Errorf(
 						"failed to set key binding for enter key: %+v", err)
@@ -266,7 +265,7 @@ func (chs *Channels) resizeInfoBox() func(g *gocui.Gui, v *gocui.View) error {
 	}
 }
 
-func (chs *Channels) copyPrettyPrint(c *crypto.Channel) func(g *gocui.Gui, v *gocui.View) error {
+func (chs *Channels) copyPrettyPrint() func(g *gocui.Gui, v *gocui.View) error {
 	return func(g *gocui.Gui, v *gocui.View) error {
 		v.Highlight = true
 		defer func() {
@@ -276,6 +275,7 @@ func (chs *Channels) copyPrettyPrint(c *crypto.Channel) func(g *gocui.Gui, v *go
 			}()
 		}()
 
+		c := chs.channels[chs.currentIndex].c
 		clipboard.Write(clipboard.FmtText, []byte(c.PrettyPrint()))
 
 		return nil
