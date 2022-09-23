@@ -12,7 +12,6 @@ import (
 	"github.com/awesome-gocui/gocui"
 	"github.com/pkg/errors"
 	jww "github.com/spf13/jwalterweatherman"
-	"gitlab.com/xx_network/primitives/netTime"
 	"strings"
 	"time"
 )
@@ -534,8 +533,7 @@ func (chs *Channels) readBuffs() func(*gocui.Gui, *gocui.View) error {
 		}
 
 		go func() {
-			timestamp := netTime.Now()
-			err := c.sendFn(buff, timestamp)
+			err := c.sendFn(buff)
 			if err != nil {
 				jww.FATAL.Panicf("Failed to send message: %+v", err)
 			}

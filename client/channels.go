@@ -32,7 +32,7 @@ type Manager struct {
 	rng           *fastRNG.StreamGenerator
 }
 
-type SendMessage func(payload string, timestamp time.Time) error
+type SendMessage func(payload string) error
 
 type ChannelIO struct {
 	ChannelID       *id.ID
@@ -99,7 +99,7 @@ func (m *Manager) ReplayChannels() ([]*ChannelIO, error) {
 }
 
 func (m *Manager) newSendFunc(chanID *id.ID) SendMessage {
-	return func(payload string, timestamp time.Time) error {
+	return func(payload string) error {
 		// TODO: Figure out correct value for validUntil.
 		msgID, rnd, ephID, err := m.chanMan.SendMessage(
 			chanID, payload, 30000, cmix.GetDefaultCMIXParams())
