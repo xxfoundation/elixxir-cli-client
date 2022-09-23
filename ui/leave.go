@@ -11,7 +11,7 @@ import (
 	"fmt"
 	"github.com/awesome-gocui/gocui"
 	"github.com/pkg/errors"
-	"gitlab.com/xx_network/primitives/id"
+	jww "github.com/spf13/jwalterweatherman"
 	"time"
 )
 
@@ -62,14 +62,14 @@ func (chs *Channels) leaveChannel() func(*gocui.Gui, *gocui.View) error {
 			v.WriteString(centerView("Yes", v))
 
 			err = g.SetKeybinding(
-				leaveGroupSubmitButton, gocui.MouseLeft, gocui.ModNone, chs.leaveGroup(chs.currentIndex, c.ReceptionID))
+				leaveGroupSubmitButton, gocui.MouseLeft, gocui.ModNone, chs.leaveGroup())
 			if err != nil {
 				return errors.Errorf(
 					"failed to set key binding for left mouse button: %+v", err)
 			}
 
 			err = g.SetKeybinding(
-				leaveGroupSubmitButton, gocui.KeyEnter, gocui.ModNone, chs.leaveGroup(chs.currentIndex, c.ReceptionID))
+				leaveGroupSubmitButton, gocui.KeyEnter, gocui.ModNone, chs.leaveGroup())
 			if err != nil {
 				return errors.Errorf(
 					"failed to set key binding for enter key: %+v", err)
@@ -135,7 +135,7 @@ func (chs *Channels) closeLeaveBox() func(g *gocui.Gui, v *gocui.View) error {
 	}
 }
 
-func (chs *Channels) leaveGroup(chanIndex int, chanID *id.ID) func(g *gocui.Gui, v *gocui.View) error {
+func (chs *Channels) leaveGroup() func(g *gocui.Gui, v *gocui.View) error {
 	return func(g *gocui.Gui, v *gocui.View) error {
 
 		submitButton, err := g.View(leaveGroupSubmitButton)
@@ -146,16 +146,19 @@ func (chs *Channels) leaveGroup(chanIndex int, chanID *id.ID) func(g *gocui.Gui,
 
 		submitButton.Highlight = true
 
-		err = chs.m.RemoveChannel(chanID)
+		c := chs.channels[chs.currentIndex]
+		err = chs.m.RemoveChannel(c.c.ReceptionID)
 		if err != nil {
 			return errors.Errorf("Failed to leave channel %s (index %d): %+v",
-				chanID, chanIndex, err)
+				c.c.ReceptionID, chs.currentIndex, err)
 		}
 
 		chs.v.switchSubView(chs.v.main.subView)
 
+		jww.ERROR.Printf("Removing %s", c.c.ReceptionID)
+
 		// Delete channel fro UI
-		chs.Remove(chanIndex)
+		chs.Remove(chs.currentIndex)
 		chs.UpdateChannelFeed(chs.currentIndex)
 
 		err = g.DeleteView(leaveGroupBox)

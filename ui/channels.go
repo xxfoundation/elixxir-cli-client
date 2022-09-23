@@ -40,14 +40,33 @@ func NewChannels(m *client.Manager) *Channels {
 		nextIndex:    0,
 		updateFeed:   make(chan struct{}, 100),
 		username:     m.Username(),
-		useClipboard: true,
 	}
 
-	err := clipboard.Init()
-	if err != nil {
-		jww.ERROR.Printf("Failed to initialize clipboard; clipboard use will"+
-			"be disabled: %+v", err)
-		cs.useClipboard = false
+	clipboardResult := make(chan bool)
+
+	go func() {
+		defer func() {
+			if err := recover(); err != nil {
+				jww.ERROR.Printf("Failed to initialize clipboard; clipboard use will"+
+					"be disabled: %+v", err)
+				clipboardResult <- false
+			}
+		}()
+
+		err := clipboard.Init()
+		if err != nil {
+			jww.ERROR.Printf("Failed to initialize clipboard; clipboard use will"+
+				"be disabled: %+v", err)
+			clipboardResult <- false
+		} else {
+			clipboardResult <- true
+		}
+	}()
+
+	cs.useClipboard = <-clipboardResult
+
+	if !cs.useClipboard {
+		cs.v.channelInfoBox.disableCopy()
 	}
 
 	go cs.UpdateChannelFeedThread()
@@ -142,12 +161,22 @@ func (chs *Channels) UpdateChatList(selected int) {
 }
 
 func (chs *Channels) UpdateChannelFeed(chanID int) {
+	if chanID >= len(chs.channels) {
+		chanID = len(chs.channels) - 1
+	}
+
 	chs.currentIndex = chanID
 	chs.v.main.channelFeed.Clear()
 
-	c := chs.channels[chanID]
-	chs.v.main.channelFeed.Title = " Channel Feed for channel " + c.c.Name + " [F4] "
-	chs.v.main.channelFeed.WriteString(chs.channels[chanID].getBuff())
+	if len(chs.channels) > 0 {
+		c := chs.channels[chanID]
+		chs.v.main.channelFeed.Title = " Channel Feed for channel " + c.c.Name + " [F4] "
+		chs.v.main.channelFeed.WriteString(chs.channels[chanID].getBuff())
+		chs.v.main.channelFeed.Autoscroll = true
+	} else {
+		chs.v.main.channelFeed.Title = " Channel Feed [F4] "
+		chs.v.main.channelFeed.WriteString("")
+	}
 
 	chs.UpdateChatList(chanID)
 }

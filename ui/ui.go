@@ -400,34 +400,9 @@ func (chs *Channels) initKeybindings(g *gocui.Gui) error {
 	}
 
 	for _, v := range chs.v.activeArr {
-		err = g.SetKeybinding(v, gocui.KeyArrowUp, gocui.ModNone, chs.scrollView(-1))
+		err = chs.addScrolling(g, v)
 		if err != nil {
-			return errors.Errorf(
-				"failed to set key binding for arrow up: %+v", err)
-		}
-
-		err = g.SetKeybinding(v, gocui.MouseWheelUp, gocui.ModNone, chs.scrollView(-1))
-		if err != nil {
-			return errors.Errorf(
-				"failed to set key binding for wheel up: %+v", err)
-		}
-
-		err = g.SetKeybinding(v, gocui.KeyArrowDown, gocui.ModNone, chs.scrollView(1))
-		if err != nil {
-			return errors.Errorf(
-				"failed to set key binding for arrow down: %+v", err)
-		}
-
-		err = g.SetKeybinding(v, gocui.MouseWheelDown, gocui.ModNone, chs.scrollView(1))
-		if err != nil {
-			return errors.Errorf(
-				"failed to set key binding for wheel down: %+v", err)
-		}
-
-		err = g.SetKeybinding(v, gocui.MouseLeft, gocui.ModNone, chs.switchActive())
-		if err != nil {
-			return errors.Errorf(
-				"failed to set key binding for left mouse button: %+v", err)
+			return err
 		}
 	}
 
@@ -630,4 +605,43 @@ func (chs *Channels) quitWithMessage() func(*gocui.Gui, *gocui.View) error {
 	return func(gui *gocui.Gui, view *gocui.View) error {
 		return gocui.ErrQuit
 	}
+}
+
+func (chs *Channels) addScrolling(g *gocui.Gui, name string) error {
+	err := g.SetKeybinding(
+		name, gocui.KeyArrowUp, gocui.ModNone, chs.scrollView(-1))
+	if err != nil {
+		return errors.Errorf(
+			"failed to bind arrow up to %s: %+v", name, err)
+	}
+
+	err = g.SetKeybinding(
+		name, gocui.MouseWheelUp, gocui.ModNone, chs.scrollView(-1))
+	if err != nil {
+		return errors.Errorf(
+			"failed to bind mouse wheel up to %s: %+v", name, err)
+	}
+
+	err = g.SetKeybinding(
+		name, gocui.KeyArrowDown, gocui.ModNone, chs.scrollView(1))
+	if err != nil {
+		return errors.Errorf(
+			"failed to bind arrow down to %s: %+v", name, err)
+	}
+
+	err = g.SetKeybinding(
+		name, gocui.MouseWheelDown, gocui.ModNone, chs.scrollView(1))
+	if err != nil {
+		return errors.Errorf(
+			"failed to bind mouse wheel down to %s: %+v", name, err)
+	}
+
+	err = g.SetKeybinding(
+		name, gocui.MouseLeft, gocui.ModNone, chs.switchActive())
+	if err != nil {
+		return errors.Errorf(
+			"failed to bind mouse left click to %s: %+v", name, err)
+	}
+
+	return nil
 }

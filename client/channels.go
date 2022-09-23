@@ -18,7 +18,6 @@ import (
 	"gitlab.com/elixxir/crypto/channel"
 	"gitlab.com/elixxir/crypto/fastRNG"
 	"gitlab.com/xx_network/primitives/id"
-	"gitlab.com/xx_network/primitives/netTime"
 	"strconv"
 	"strings"
 	"time"
@@ -156,7 +155,7 @@ func (m *Manager) RemoveChannel(channelID *id.ID) error {
 func (m *Manager) JoinChannel(*crypto.Channel) {}
 func (m *Manager) LeaveChannel(*id.ID)         {}
 
-func (m *Manager) ReceiveMessage(channelID *id.ID, messageID channel.MessageID, senderUsername, text string, timestamp time.Time, lease time.Duration, round rounds.Round, status channels.SentStatus) {
+func (m *Manager) ReceiveMessage(channelID *id.ID, messageID channel.MessageID, senderUsername, text string, timestamp time.Time, _ time.Duration, round rounds.Round, status channels.SentStatus) {
 	c, exists := m.chans[*channelID]
 	if !exists {
 		jww.FATAL.Printf("No channel with ID %s exists.", channelID)
@@ -166,7 +165,7 @@ func (m *Manager) ReceiveMessage(channelID *id.ID, messageID channel.MessageID, 
 	jww.INFO.Printf("Received message %s for channel %s from %s at %s on round %d: %s", messageID, channelID, senderUsername, timestamp, text)
 
 	usernameField := "\x1b[38;5;255m" + senderUsername + "\x1b[0m"
-	timestampField := "\x1b[38;5;245m[received " + netTime.Now().Format("3:04:05 pm") + " / sent " + timestamp.Format("3:04:05 pm") + " / round " + strconv.Itoa(int(round.ID)) + "]\x1b[0m"
+	timestampField := "\x1b[38;5;245m[" + timestamp.Format("3:04:05 pm 1/2/06") + " | round " + strconv.Itoa(int(round.ID)) + "]\x1b[0m"
 	messageField := "\x1b[38;5;250m" + strings.TrimSpace(text) + "\x1b[0m"
 	message := usernameField + " " + timestampField + "\n" + messageField
 

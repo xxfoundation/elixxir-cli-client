@@ -18,8 +18,8 @@ const (
 	newGroupBox          = "newGroupBox"
 	newGroupNameInput    = "newGroupNameInput"
 	newGroupDescInput    = "newGroupDescInput"
-	newGroupCancelButton = "newGroupCancelButton"
 	newGroupSubmitButton = "newGroupSubmitButton"
+	newGroupCancelButton = "newGroupCancelButton"
 )
 
 func (chs *Channels) newChannel() func(*gocui.Gui, *gocui.View) error {
@@ -148,35 +148,7 @@ func (chs *Channels) newChannel() func(*gocui.Gui, *gocui.View) error {
 			}
 		}
 
-		if v, err := g.SetView(newGroupCancelButton, maxX/2-40+12, maxY/2-8+13, maxX/2-40+28, maxY/2-8+15, 0); err != nil {
-			if err != gocui.ErrUnknownView {
-				return errors.Errorf(
-					"Failed to set view %q: %+v", newGroupCancelButton, err)
-			}
-
-			v.SelBgColor = gocui.ColorGreen
-			v.SelFgColor = gocui.ColorBlack
-
-			chs.v.newBox.newGroupCancelButton = v
-
-			v.WriteString(centerView("Cancel", v))
-
-			err = g.SetKeybinding(
-				newGroupCancelButton, gocui.MouseLeft, gocui.ModNone, chs.closeNewBox())
-			if err != nil {
-				return errors.Errorf(
-					"failed to set key binding for left mouse button: %+v", err)
-			}
-
-			err = g.SetKeybinding(
-				newGroupCancelButton, gocui.KeyEnter, gocui.ModNone, chs.closeNewBox())
-			if err != nil {
-				return errors.Errorf(
-					"failed to set key binding for enter key: %+v", err)
-			}
-		}
-
-		if v, err := g.SetView(newGroupSubmitButton, maxX/2+40-28, maxY/2-8+13, maxX/2+40-12, maxY/2-8+15, 0); err != nil {
+		if v, err := g.SetView(newGroupSubmitButton, maxX/2-40+12, maxY/2-8+13, maxX/2-40+28, maxY/2-8+15, 0); err != nil {
 			if err != gocui.ErrUnknownView {
 				return errors.Errorf(
 					"Failed to set view %q: %+v", newGroupSubmitButton, err)
@@ -198,6 +170,34 @@ func (chs *Channels) newChannel() func(*gocui.Gui, *gocui.View) error {
 
 			err = g.SetKeybinding(
 				newGroupSubmitButton, gocui.KeyEnter, gocui.ModNone, chs.newGroup())
+			if err != nil {
+				return errors.Errorf(
+					"failed to set key binding for enter key: %+v", err)
+			}
+		}
+
+		if v, err := g.SetView(newGroupCancelButton, maxX/2+40-28, maxY/2-8+13, maxX/2+40-12, maxY/2-8+15, 0); err != nil {
+			if err != gocui.ErrUnknownView {
+				return errors.Errorf(
+					"Failed to set view %q: %+v", newGroupCancelButton, err)
+			}
+
+			v.SelBgColor = gocui.ColorGreen
+			v.SelFgColor = gocui.ColorBlack
+
+			chs.v.newBox.newGroupCancelButton = v
+
+			v.WriteString(centerView("Cancel", v))
+
+			err = g.SetKeybinding(
+				newGroupCancelButton, gocui.MouseLeft, gocui.ModNone, chs.closeNewBox())
+			if err != nil {
+				return errors.Errorf(
+					"failed to set key binding for left mouse button: %+v", err)
+			}
+
+			err = g.SetKeybinding(
+				newGroupCancelButton, gocui.KeyEnter, gocui.ModNone, chs.closeNewBox())
 			if err != nil {
 				return errors.Errorf(
 					"failed to set key binding for enter key: %+v", err)

@@ -38,14 +38,12 @@ func newViews() *views {
 			subView: subView{
 				active: 0,
 				list: []string{newGroupBox, newGroupNameInput,
-					newGroupDescInput, newGroupCancelButton,
-					newGroupSubmitButton},
-				activeArr: []string{newGroupNameInput,
-					newGroupDescInput, newGroupCancelButton,
-					newGroupSubmitButton},
+					newGroupDescInput, newGroupSubmitButton,
+					newGroupCancelButton},
+				activeArr: []string{newGroupNameInput, newGroupDescInput,
+					newGroupSubmitButton, newGroupCancelButton},
 				cursorList: map[string]struct{}{
-					newGroupNameInput: {},
-					newGroupDescInput: {},
+					newGroupNameInput: {}, newGroupDescInput: {},
 				},
 			},
 		},
@@ -53,9 +51,9 @@ func newViews() *views {
 			subView: subView{
 				active: 0,
 				list: []string{joinGroupBox, joinGroupInput,
-					joinGroupCancelButton, joinGroupSubmitButton},
+					joinGroupSubmitButton, joinGroupCancelButton},
 				activeArr: []string{joinGroupInput,
-					joinGroupCancelButton, joinGroupSubmitButton},
+					joinGroupSubmitButton, joinGroupCancelButton},
 				cursorList: map[string]struct{}{
 					joinGroupInput: {},
 				},
@@ -104,11 +102,11 @@ func (v *views) writeChannelInfo(c *crypto.Channel) bool {
 	v.main.titleBox.Clear()
 	_, err := fmt.Fprintf(v.main.titleBox,
 		"\x1B[38;5;255m"+"Name:"+"\x1B[38;5;250m\n"+
-			" %s\n\n"+
+			"%s\n\n"+
 			"\x1B[38;5;255m"+"Description:"+"\x1B[38;5;250m\n"+
-			" %s\n\n"+
+			"%s\n\n"+
 			"\x1B[38;5;255m"+"Channel ID:"+"\x1B[38;5;250m\n"+
-			" %s"+"\x1b[0m"+"\n\n\n",
+			"%s"+"\x1b[0m"+"\n\n\n",
 		c.Name, c.Description, c.ReceptionID)
 	if err != nil {
 		jww.FATAL.Panicf("%+v", err)

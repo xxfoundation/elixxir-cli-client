@@ -91,3 +91,18 @@ type channelInfoView struct {
 	channelInfoCopyButton   *gocui.View
 	channelInfoCloseButton  *gocui.View
 }
+
+func (civ *channelInfoView) disableCopy() {
+	for i, name := range civ.list {
+		if name == channelInfoCopyButton {
+			civ.list = append(civ.list[:i], civ.list[i+1:]...)
+			break
+		}
+	}
+	for i, name := range civ.activeArr {
+		if name == channelInfoCopyButton {
+			civ.activeArr = append(civ.activeArr[:i], civ.activeArr[i+1:]...)
+			break
+		}
+	}
+}

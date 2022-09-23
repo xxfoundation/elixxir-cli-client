@@ -27,6 +27,10 @@ const (
 
 func (chs *Channels) channelInfoBox(expand bool) func(*gocui.Gui, *gocui.View) error {
 	return func(g *gocui.Gui, _ *gocui.View) error {
+		if len(chs.channels) == 0 {
+			return nil
+		}
+
 		chs.v.main.infoButton.Highlight = true
 		defer func() {
 			go func() {
@@ -49,6 +53,7 @@ func (chs *Channels) channelInfoBox(expand bool) func(*gocui.Gui, *gocui.View) e
 			x0, y0, x1, y1 = maxX/2-70, maxY/2-15, maxX/2+70, maxY/2+15
 		}
 
+		x0, y0, x1, y1 = fixDimensions(x0, y0, x1, y1, maxX, maxY)
 		if v, err := g.SetView(channelInfoBox, x0, y0, x1, y1, 0); err != nil {
 			if err != gocui.ErrUnknownView {
 				return errors.Errorf(
@@ -65,6 +70,7 @@ func (chs *Channels) channelInfoBox(expand bool) func(*gocui.Gui, *gocui.View) e
 		} else {
 			x0, y0, x1, y1 = maxX/2-68, maxY/2-14, maxX/2+68, maxY/2+12
 		}
+		x0, y0, x1, y1 = fixDimensions(x0, y0, x1, y1, maxX, maxY)
 		if v, err := g.SetView(channelInfoBoxInside, x0, y0, x1, y1, 0); err != nil {
 			if err != gocui.ErrUnknownView {
 				return errors.Errorf(
@@ -280,4 +286,20 @@ func (chs *Channels) copyPrettyPrint() func(g *gocui.Gui, v *gocui.View) error {
 
 		return nil
 	}
+}
+
+func fixDimensions(x0, y0, x1, y1, maxX, maxY int) (int, int, int, int) {
+	if x0 < 0 {
+		x0 = 0
+	}
+	if y0 < 0 {
+		y0 = 0
+	}
+	if x1 > maxX-1 {
+		x1 = maxX - 1
+	}
+	if y1 > maxY-1 {
+		y1 = maxY - 1
+	}
+	return x0, y0, x1, y1
 }
