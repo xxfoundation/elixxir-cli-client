@@ -18,6 +18,7 @@ import (
 	"gitlab.com/elixxir/crypto/channel"
 	"gitlab.com/elixxir/crypto/fastRNG"
 	"gitlab.com/xx_network/primitives/id"
+	"github.com/gen2brain/beeep"
 	"strconv"
 	"strings"
 	"time"
@@ -170,6 +171,12 @@ func (m *Manager) ReceiveMessage(channelID *id.ID, messageID channel.MessageID, 
 	message := usernameField + " " + timestampField + "\n" + messageField
 
 	c.ReceivedMsgChan <- message
+
+	err := beeep.Notify(senderUsername, strings.TrimSpace(text), "icon.png")
+	if err != nil {
+		jww.FATAL.Printf("Could not make desktop notification occur: %s", err)
+		return
+	}
 }
 
 func (m *Manager) ReceiveReply(channelID *id.ID, messageID channel.MessageID, reactionTo channel.MessageID, senderUsername, text string, timestamp time.Time, lease time.Duration, round rounds.Round, status channels.SentStatus) {
