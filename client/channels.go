@@ -8,16 +8,20 @@
 package client
 
 import (
+	"git.xx.network/elixxir/cli-client/username"
 	"github.com/pkg/errors"
 	jww "github.com/spf13/jwalterweatherman"
 	"gitlab.com/elixxir/client/channels"
 	"gitlab.com/elixxir/client/cmix"
 	"gitlab.com/elixxir/client/cmix/rounds"
+	"gitlab.com/elixxir/client/storage/versioned"
 	"gitlab.com/elixxir/client/xxdk"
 	crypto "gitlab.com/elixxir/crypto/broadcast"
 	"gitlab.com/elixxir/crypto/channel"
 	"gitlab.com/elixxir/crypto/fastRNG"
 	"gitlab.com/xx_network/primitives/id"
+	"gitlab.com/xx_network/primitives/netTime"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -27,8 +31,10 @@ type Manager struct {
 	chanMan       channels.Manager
 	chans         map[id.ID]*ChannelIO
 	username      string
+	nickname      string
 	maxMessageLen int
 	rng           *fastRNG.StreamGenerator
+	counter       uint64
 }
 
 type SendMessage func(payload string) error
@@ -40,23 +46,76 @@ type ChannelIO struct {
 	C               *crypto.Channel
 }
 
-func NewChannelManager(net *xxdk.Cmix, username string) *Manager {
+const identityKey = "identityKey"
+
+func NewChannelManager(net *xxdk.Cmix, nickname string) *Manager {
+	m := &Manager{
+		chans:         make(map[id.ID]*ChannelIO),
+		nickname:      nickname,
+		maxMessageLen: net.GetCmix().GetMaxMessageLength(),
+		rng:           net.GetRng(),
+		counter:       0,
+	}
+
+	obj, err := net.GetStorage().GetKV().Get(identityKey, 0)
+	if err == nil {
+		m.chanMan, err = channels.LoadManager(string(obj.Data),
+			net.GetStorage().GetKV(), net.GetCmix(), net.GetRng(), m)
+		if err != nil {
+			jww.FATAL.Panicf("Failed create new manager: %+v", err)
+		}
+
+		m.username = m.chanMan.GetIdentity().Codename
+
+		return m
+	} else if err != nil && net.GetStorage().GetKV().Exists(err) {
+		jww.FATAL.Panicf("Failed to store storage tag: %+v", err)
+	}
+	var usernames []string
+	usernamesMap := make(map[string]channel.PrivateIdentity)
+
 	rng := net.GetRng().GetStream()
-	nameService, err := channels.NewDummyNameService(username, rng)
-	if err != nil {
-		jww.FATAL.Panicf("Failed create dummy name service: %+v", err)
+	for i := 0; i < 100; i++ {
+		pi, err := channel.GenerateIdentity(rng)
+		if err != nil {
+			jww.FATAL.Panicf("Failed to generate identity: %+v", err)
+		}
+
+		usernamesMap[pi.Codename] = pi
+		usernames = append(usernames, pi.Codename)
 	}
 	rng.Close()
 
-	m := &Manager{
-		chans:         make(map[id.ID]*ChannelIO),
-		username:      username,
-		maxMessageLen: net.GetCmix().GetMaxMessageLength(),
-		rng:           net.GetRng(),
+	selected := make(chan string)
+	quit := make(chan struct{})
+
+	go username.MakeUI(usernames, selected, quit)
+
+	var chosenUsername string
+	select {
+	case chosenUsername = <-selected:
+	case <-quit:
+		os.Exit(0)
 	}
 
-	m.chanMan = channels.NewManager(
-		net.GetStorage().GetKV(), net.GetCmix(), net.GetRng(), nameService, m)
+	chosenIdentity := usernamesMap[chosenUsername]
+
+	m.username = chosenUsername
+
+	m.chanMan, err = channels.NewManager(chosenIdentity,
+		net.GetStorage().GetKV(), net.GetCmix(), net.GetRng(), m)
+	if err != nil {
+		jww.FATAL.Panicf("Failed create new manager: %+v", err)
+	}
+
+	err = net.GetStorage().GetKV().Set(identityKey, &versioned.Object{
+		Version:   0,
+		Timestamp: netTime.Now(),
+		Data:      []byte(m.chanMan.GetStorageTag()),
+	})
+	if err != nil {
+		jww.FATAL.Panicf("Failed to store storage tag: %+v", err)
+	}
 
 	return m
 }
@@ -145,6 +204,11 @@ func (m *Manager) AddChannel(prettyPrint string) (*ChannelIO, error) {
 		C:               c,
 	}
 
+	err = m.chanMan.SetNickname(m.nickname, c.ReceptionID)
+	if err != nil {
+		return nil, err
+	}
+
 	return m.chans[*c.ReceptionID], nil
 }
 
@@ -155,31 +219,52 @@ func (m *Manager) RemoveChannel(channelID *id.ID) error {
 func (m *Manager) JoinChannel(*crypto.Channel) {}
 func (m *Manager) LeaveChannel(*id.ID)         {}
 
-func (m *Manager) ReceiveMessage(channelID *id.ID, messageID channel.MessageID, senderUsername, text string, timestamp time.Time, _ time.Duration, round rounds.Round, status channels.SentStatus) {
+func (m *Manager) ReceiveMessage(channelID *id.ID, messageID channel.MessageID,
+	nickname, text string, identity channel.Identity, timestamp time.Time,
+	lease time.Duration, round rounds.Round, status channels.SentStatus) uint64 {
 	c, exists := m.chans[*channelID]
 	if !exists {
 		jww.FATAL.Printf("No channel with ID %s exists.", channelID)
-		return
 	}
 
-	jww.INFO.Printf("Received message %s for channel %s from %s at %s on round %d: %s", messageID, channelID, senderUsername, timestamp, text)
+	jww.INFO.Printf("Received message %s for channel %s from %s at %s on round %d: %s", messageID, channelID, nickname, timestamp, text)
 
-	usernameField := "\x1b[38;5;255m" + senderUsername + "\x1b[0m"
-	timestampField := "\x1b[38;5;245m[" + timestamp.Format("3:04:05 pm 1/2/06") + " | round " + strconv.Itoa(int(round.ID)) + "]\x1b[0m"
+	usernameField := "\x1b[38;1;255m" + nickname + "\x1b[0m\x1b[38;5;251m#" + identity.Codename + "\x1b[0m"
+	timestampField := "\x1b[38;5;242m[" + timestamp.Format("3:04:05 pm 1/2/06") + " | round " + strconv.Itoa(int(round.ID)) + "]\x1b[0m"
 	messageField := "\x1b[38;5;250m" + strings.TrimSpace(text) + "\x1b[0m"
 	message := usernameField + " " + timestampField + "\n" + messageField
 
 	c.ReceivedMsgChan <- message
+
+	m.counter++
+	return m.counter
 }
 
-func (m *Manager) ReceiveReply(channelID *id.ID, messageID channel.MessageID, reactionTo channel.MessageID, senderUsername, text string, timestamp time.Time, lease time.Duration, round rounds.Round, status channels.SentStatus) {
-	jww.INFO.Printf("Received reply: channelID:%s messageID:%s reactionTo:%s senderUsername:%q text:%q timestamp:%s lease:%s round:%d round:%s status:%d", channelID, messageID, reactionTo, senderUsername, text, timestamp, lease, round.ID, status)
+func (m *Manager) ReceiveReply(channelID *id.ID, messageID channel.MessageID,
+	reactionTo channel.MessageID, nickname, text string,
+	identity channel.Identity, timestamp time.Time,
+	lease time.Duration, round rounds.Round, status channels.SentStatus) uint64 {
+	jww.INFO.Printf("Received reply: channelID:%s messageID:%s reactionTo:%s "+
+		"nickname:%q text:%q timestamp:%s lease:%s round:%d "+
+		"round:%s status:%d", channelID, messageID, reactionTo, nickname, text,
+		timestamp, lease, round.ID, status)
+	m.counter++
+	return m.counter
 }
 
-func (m *Manager) ReceiveReaction(channelID *id.ID, messageID channel.MessageID, reactionTo channel.MessageID, senderUsername, reaction string, timestamp time.Time, lease time.Duration, round rounds.Round, status channels.SentStatus) {
-	jww.INFO.Printf("Received reaction: channelID:%s messageID:%s reactionTo:%s senderUsername:%q reaction:%q timestamp:%s lease:%s round:%d round:%s status:%d", channelID, messageID, reactionTo, senderUsername, reaction, timestamp, lease, round.ID, status)
+func (m *Manager) ReceiveReaction(channelID *id.ID, messageID channel.MessageID,
+	reactionTo channel.MessageID, nickname, reaction string,
+	identity channel.Identity, timestamp time.Time, lease time.Duration,
+	round rounds.Round, status channels.SentStatus) uint64 {
+	jww.INFO.Printf("Received reaction: channelID:%s messageID:%s reactionTo:%s "+
+		"nickname:%q reaction:%q timestamp:%s lease:%s round:%d round:%s "+
+		"status:%d", channelID, messageID, reactionTo, nickname, reaction,
+		timestamp, lease, round.ID, status)
+	m.counter++
+	return m.counter
 }
 
-func (m *Manager) UpdateSentStatus(messageID channel.MessageID, status channels.SentStatus) {
+func (m *Manager) UpdateSentStatus(uuid uint64, messageID channel.MessageID,
+	timestamp time.Time, round rounds.Round, status channels.SentStatus) {
 	jww.INFO.Printf("UpdateSentStatus: messageID:%s status:%d", messageID, status)
 }

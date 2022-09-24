@@ -42,13 +42,13 @@ func (chs *Channels) joinChannel() func(*gocui.Gui, *gocui.View) error {
 		g.Cursor = true
 
 		maxX, maxY := g.Size()
-		x0, y0, x1, y1 := maxX/2-40, maxY/2-8, maxX/2+40, maxY/2+8
+		x0, y0, x1, y1 := fixDimensions(maxX/2-40, maxY/2-8, maxX/2+40, maxY/2+8, maxX, maxY)
 		if v, err := g.SetView(joinGroupBox, x0, y0, x1, y1, 0); err != nil {
 			if err != gocui.ErrUnknownView {
 				return errors.Errorf(
 					"Failed to set view %q: %+v", joinGroupBox, err)
 			}
-			v.Title = " Join New Channel "
+			v.Title = " Join Channel "
 			v.Wrap = true
 			v.FrameRunes = []rune{'═', '║', '╔', '╗', '╚', '╝', '╠', '╣', '╦', '╩', '╬'}
 			chs.v.joinBox.joinGroupBox = v
@@ -113,7 +113,7 @@ func (chs *Channels) joinChannel() func(*gocui.Gui, *gocui.View) error {
 			v.SelFgColor = gocui.ColorBlack
 			chs.v.joinBox.joinGroupSubmitButton = v
 
-			v.WriteString(centerView("Join", v))
+			v.WriteString(CenterView("Join", v))
 
 			err = g.SetKeybinding(
 				joinGroupSubmitButton, gocui.MouseLeft, gocui.ModNone, chs.joinGroup())
@@ -140,7 +140,7 @@ func (chs *Channels) joinChannel() func(*gocui.Gui, *gocui.View) error {
 			v.SelFgColor = gocui.ColorBlack
 			chs.v.joinBox.joinGroupCancelButton = v
 
-			v.WriteString(centerView("Cancel", v))
+			v.WriteString(CenterView("Cancel", v))
 
 			err = g.SetKeybinding(
 				joinGroupCancelButton, gocui.MouseLeft, gocui.ModNone, chs.closeJoinBox())
@@ -187,6 +187,13 @@ func (chs *Channels) joinGroup() func(g *gocui.Gui, v *gocui.View) error {
 		buff := strings.TrimSpace(chs.v.joinBox.joinGroupInput.Buffer())
 
 		if len(buff) == 0 {
+			chs.v.joinBox.joinGroupInput.BgColor = gocui.ColorRed
+			defer func() {
+				go func() {
+					time.Sleep(500 * time.Millisecond)
+					chs.v.joinBox.joinGroupInput.BgColor = gocui.ColorDefault
+				}()
+			}()
 			return nil
 		}
 
@@ -200,7 +207,7 @@ func (chs *Channels) joinGroup() func(g *gocui.Gui, v *gocui.View) error {
 
 		chanIO, err := chs.m.AddChannel(buff)
 		if err != nil {
-			jww.ERROR.Printf("Failed to add channel %q: %+v", buff, err)
+			jww.ERROR.Printf("Failed to join channel %q: %+v", buff, err)
 			err = chs.showJoinChannelError(g, err.Error())
 			if err != nil {
 				return err
@@ -221,6 +228,8 @@ func (chs *Channels) joinGroup() func(g *gocui.Gui, v *gocui.View) error {
 					"Failed to delete view %q: %+v", name, err)
 			}
 		}
+
+		chs.UpdateChannelFeed(len(chs.channels) - 1)
 
 		return nil
 	}
@@ -244,7 +253,7 @@ func (chs *Channels) showJoinChannelError(g *gocui.Gui, message string) error {
 			return errors.Errorf(
 				"Failed to set view %q: %+v", joinGroupErrorBox, err)
 		}
-		v.Title = " Join New Channel "
+		v.Title = " Join Channel "
 		v.FrameRunes = []rune{'═', '║', '╔', '╗', '╚', '╝', '╠', '╣', '╦', '╩', '╬'}
 	}
 
@@ -279,7 +288,7 @@ func (chs *Channels) showJoinChannelError(g *gocui.Gui, message string) error {
 		v.SelFgColor = gocui.ColorBlack
 		chs.v.joinBox.joinGroupCancelButton = v
 
-		v.WriteString(centerView("Back", v))
+		v.WriteString(CenterView("Back", v))
 
 		err = g.SetKeybinding(
 			joinGroupErrorBackButton, gocui.MouseLeft, gocui.ModNone, chs.closeJoinErrorBox())
@@ -306,7 +315,7 @@ func (chs *Channels) showJoinChannelError(g *gocui.Gui, message string) error {
 		v.SelFgColor = gocui.ColorBlack
 		chs.v.joinBox.joinGroupCancelButton = v
 
-		v.WriteString(centerView("Close", v))
+		v.WriteString(CenterView("Close", v))
 
 		err = g.SetKeybinding(
 			joinGroupErrorCloseButton, gocui.MouseLeft, gocui.ModNone, chs.closeAllJoinBoxes())

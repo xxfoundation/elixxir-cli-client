@@ -46,15 +46,13 @@ func (chs *Channels) channelInfoBox(expand bool) func(*gocui.Gui, *gocui.View) e
 
 		maxX, maxY := g.Size()
 
-		var x0, y0, x1, y1 int
+		var xo0, yo0, xo1, yo1 int
 		if expand {
-			x0, y0, x1, y1 = -1, 0, maxX, maxY-1
+			xo0, yo0, xo1, yo1 = -1, 0, maxX, maxY-1
 		} else {
-			x0, y0, x1, y1 = maxX/2-70, maxY/2-15, maxX/2+70, maxY/2+15
+			xo0, yo0, xo1, yo1 = fixDimensions(maxX/2-70, maxY/2-15, maxX/2+70, maxY/2+15, maxX, maxY)
 		}
-
-		x0, y0, x1, y1 = fixDimensions(x0, y0, x1, y1, maxX, maxY)
-		if v, err := g.SetView(channelInfoBox, x0, y0, x1, y1, 0); err != nil {
+		if v, err := g.SetView(channelInfoBox, xo0, yo0, xo1, yo1, 0); err != nil {
 			if err != gocui.ErrUnknownView {
 				return errors.Errorf(
 					"Failed to set view %q: %+v", channelInfoBox, err)
@@ -65,12 +63,12 @@ func (chs *Channels) channelInfoBox(expand bool) func(*gocui.Gui, *gocui.View) e
 			chs.v.channelInfoBox.channelInfoBox = v
 		}
 
+		var x0, y0, x1, y1 int
 		if expand {
 			x0, y0, x1, y1 = -1, 0, maxX, maxY-5
 		} else {
-			x0, y0, x1, y1 = maxX/2-68, maxY/2-14, maxX/2+68, maxY/2+12
+			x0, y0, x1, y1 = fixDimensions(xo0+2, yo0+1, xo1-2, yo1-5, maxX, maxY)
 		}
-		x0, y0, x1, y1 = fixDimensions(x0, y0, x1, y1, maxX, maxY)
 		if v, err := g.SetView(channelInfoBoxInside, x0, y0, x1, y1, 0); err != nil {
 			if err != gocui.ErrUnknownView {
 				return errors.Errorf(
@@ -82,15 +80,15 @@ func (chs *Channels) channelInfoBox(expand bool) func(*gocui.Gui, *gocui.View) e
 			chs.v.channelInfoBox.channelInfoBoxInside = v
 
 			lines := []string{
-				fmt.Sprintf("%s:\n%s", bold("Name"), dim(c.Name)),
-				fmt.Sprintf("%s:\n%s", bold("Description"), dim(c.Description)),
-				fmt.Sprintf("%s:\n%s", bold("ReceptionID"), dim(c.ReceptionID.String())),
-				fmt.Sprintf("%s:\n%s", bold("Pretty Print"), dim(c.PrettyPrint())),
-				fmt.Sprintf("%s:\n%s", bold("Salt"), dim(fmt.Sprintf("%v", c.Salt))),
-				fmt.Sprintf("%s:\n%s", bold("RsaPubKeyHash"), dim(fmt.Sprintf("%v", c.RsaPubKeyHash))),
-				fmt.Sprintf("%s:\n%s", bold("RsaPubKeyLength"), dim(strconv.Itoa(c.RsaPubKeyLength))),
-				fmt.Sprintf("%s:\n%s", bold("RSASubPayloads"), dim(strconv.Itoa(c.RSASubPayloads))),
-				fmt.Sprintf("%s:\n%s", bold("Secret"), dim(fmt.Sprintf("%v", c.Secret))),
+				fmt.Sprintf("%s:\n%s", Bold("Name"), Dim(c.Name)),
+				fmt.Sprintf("%s:\n%s", Bold("Description"), Dim(c.Description)),
+				fmt.Sprintf("%s:\n%s", Bold("ReceptionID"), Dim(c.ReceptionID.String())),
+				fmt.Sprintf("%s:\n%s", Bold("Pretty Print"), Dim(c.PrettyPrint())),
+				fmt.Sprintf("%s:\n%s", Bold("Salt"), Dim(fmt.Sprintf("%v", c.Salt))),
+				fmt.Sprintf("%s:\n%s", Bold("RsaPubKeyHash"), Dim(fmt.Sprintf("%v", c.RsaPubKeyHash))),
+				fmt.Sprintf("%s:\n%s", Bold("RsaPubKeyLength"), Dim(strconv.Itoa(c.RsaPubKeyLength))),
+				fmt.Sprintf("%s:\n%s", Bold("RSASubPayloads"), Dim(strconv.Itoa(c.RSASubPayloads))),
+				fmt.Sprintf("%s:\n%s", Bold("Secret"), Dim(fmt.Sprintf("%v", c.Secret))),
 			}
 
 			v.WriteString(strings.Join(lines, "\n\n"))
@@ -126,12 +124,7 @@ func (chs *Channels) channelInfoBox(expand bool) func(*gocui.Gui, *gocui.View) e
 			}
 		}
 
-		if expand {
-			x0, y0, x1, y1 = maxX/2-40+12, maxY-4, maxX/2-40+28, maxY-2
-		} else {
-			x0, y0, x1, y1 = maxX/2-40+12, maxY/2+12, maxX/2-40+28, maxY/2+14
-		}
-		if v, err := g.SetView(channelInfoExpandButton, x0, y0, x1, y1, 0); err != nil {
+		if v, err := g.SetView(channelInfoExpandButton, maxX/2-40+12, yo1-3, maxX/2-40+28, yo1-1, 0); err != nil {
 			if err != gocui.ErrUnknownView {
 				return errors.Errorf(
 					"Failed to set view %q: %+v", channelInfoExpandButton, err)
@@ -158,20 +151,14 @@ func (chs *Channels) channelInfoBox(expand bool) func(*gocui.Gui, *gocui.View) e
 
 		if expand {
 			chs.v.channelInfoBox.channelInfoExpandButton.Clear()
-			chs.v.channelInfoBox.channelInfoExpandButton.WriteString(centerView("Contract", chs.v.channelInfoBox.channelInfoExpandButton))
+			chs.v.channelInfoBox.channelInfoExpandButton.WriteString(CenterView("Contract", chs.v.channelInfoBox.channelInfoExpandButton))
 		} else {
 			chs.v.channelInfoBox.channelInfoExpandButton.Clear()
-			chs.v.channelInfoBox.channelInfoExpandButton.WriteString(centerView("Expand", chs.v.channelInfoBox.channelInfoExpandButton))
+			chs.v.channelInfoBox.channelInfoExpandButton.WriteString(CenterView("Expand", chs.v.channelInfoBox.channelInfoExpandButton))
 		}
 
 		if chs.useClipboard {
-
-			if expand {
-				x0, y0, x1, y1 = maxX/2-8, maxY-4, maxX/2+8, maxY-2
-			} else {
-				x0, y0, x1, y1 = maxX/2-8, maxY/2+12, maxX/2+8, maxY/2+14
-			}
-			if v, err := g.SetView(channelInfoCopyButton, x0, y0, x1, y1, 0); err != nil {
+			if v, err := g.SetView(channelInfoCopyButton, maxX/2-8, yo1-3, maxX/2+8, yo1-1, 0); err != nil {
 				if err != gocui.ErrUnknownView {
 					return errors.Errorf(
 						"Failed to set view %q: %+v", channelInfoCopyButton, err)
@@ -181,7 +168,7 @@ func (chs *Channels) channelInfoBox(expand bool) func(*gocui.Gui, *gocui.View) e
 				v.SelFgColor = gocui.ColorBlack
 				chs.v.channelInfoBox.channelInfoCopyButton = v
 
-				v.WriteString(centerView("Copy", v))
+				v.WriteString(CenterView("Copy", v))
 
 				err = g.SetKeybinding(
 					channelInfoCopyButton, gocui.MouseLeft, gocui.ModNone, chs.copyPrettyPrint())
@@ -199,12 +186,7 @@ func (chs *Channels) channelInfoBox(expand bool) func(*gocui.Gui, *gocui.View) e
 			}
 		}
 
-		if expand {
-			x0, y0, x1, y1 = maxX/2+40-28, maxY-4, maxX/2+40-12, maxY-2
-		} else {
-			x0, y0, x1, y1 = maxX/2+40-28, maxY/2+12, maxX/2+40-12, maxY/2+14
-		}
-		if v, err := g.SetView(channelInfoCloseButton, x0, y0, x1, y1, 0); err != nil {
+		if v, err := g.SetView(channelInfoCloseButton, maxX/2+40-28, yo1-3, maxX/2+40-12, yo1-1, 0); err != nil {
 			if err != gocui.ErrUnknownView {
 				return errors.Errorf(
 					"Failed to set view %q: %+v", channelInfoCloseButton, err)
@@ -214,7 +196,7 @@ func (chs *Channels) channelInfoBox(expand bool) func(*gocui.Gui, *gocui.View) e
 			v.SelFgColor = gocui.ColorBlack
 			chs.v.channelInfoBox.channelInfoCloseButton = v
 
-			v.WriteString(centerView("Close", v))
+			v.WriteString(CenterView("Close", v))
 
 			err = g.SetKeybinding(
 				channelInfoCloseButton, gocui.MouseLeft, gocui.ModNone, chs.closeInfoBox())

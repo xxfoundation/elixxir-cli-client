@@ -97,7 +97,7 @@ func (chs *Channels) makeLayout(username string, maxMessageLen int) func(g *gocu
 			v.SelBgColor = gocui.ColorGreen
 			v.SelFgColor = gocui.ColorBlack
 
-			v.WriteString(centerView("Channel Info", v))
+			v.WriteString(CenterView("Channel Info", v))
 
 			chs.v.main.infoButton = v
 		}
@@ -111,7 +111,7 @@ func (chs *Channels) makeLayout(username string, maxMessageLen int) func(g *gocu
 			v.SelBgColor = gocui.ColorGreen
 			v.SelFgColor = gocui.ColorBlack
 
-			v.WriteString(centerView("New", v))
+			v.WriteString(CenterView("New", v))
 
 			chs.v.main.newButton = v
 		}
@@ -125,7 +125,7 @@ func (chs *Channels) makeLayout(username string, maxMessageLen int) func(g *gocu
 			v.SelBgColor = gocui.ColorGreen
 			v.SelFgColor = gocui.ColorBlack
 
-			v.WriteString(centerView("Join", v))
+			v.WriteString(CenterView("Join", v))
 
 			chs.v.main.joinButton = v
 		}
@@ -139,7 +139,7 @@ func (chs *Channels) makeLayout(username string, maxMessageLen int) func(g *gocu
 			v.SelBgColor = gocui.ColorGreen
 			v.SelFgColor = gocui.ColorBlack
 
-			v.WriteString(centerView("Leave", v))
+			v.WriteString(CenterView("Leave", v))
 
 			chs.v.main.leaveButton = v
 		}
@@ -151,11 +151,25 @@ func (chs *Channels) makeLayout(username string, maxMessageLen int) func(g *gocu
 			}
 			v.Title = " Chat List [F3] "
 			v.Wrap = false
-			v.Autoscroll = true
+			v.Autoscroll = false
 
 			if _, err = g.SetCurrentView(v.Name()); err != nil {
 				return errors.Errorf(
 					"Failed to set the current view to %q: %+v", v.Name(), err)
+			}
+
+			err := g.SetKeybinding(
+				v.Name(), gocui.KeyArrowUp, gocui.ModNone, chs.moveView(-1))
+			if err != nil {
+				return errors.Errorf(
+					"failed to bind arrow up to %s: %+v", v.Name(), err)
+			}
+
+			err = g.SetKeybinding(
+				v.Name(), gocui.KeyArrowDown, gocui.ModNone, chs.moveView(1))
+			if err != nil {
+				return errors.Errorf(
+					"failed to bind arrow down to %s: %+v", v.Name(), err)
 			}
 
 			chs.v.main.chatList = v
@@ -426,27 +440,80 @@ func (chs *Channels) switchActive() func(*gocui.Gui, *gocui.View) error {
 		}
 
 		if v.Name() == chatList {
-			cx, cy := v.Cursor()
-			if (cy >= 0) && (cy < len(v.ViewBufferLines())) {
-				// l, err := v.Line(cy)
-				// if err != nil {
-				// 	return errors.Errorf(
-				// 		"Failed to get line %d of %q: %+v", cy, v.Name(), err)
-				// }
-				//
-				// jww.INFO.Printf("cy: %d   l: %s", cy, l)
-				// chs.UpdateChannelFeed(unmarshalChannelID(l))
-				chs.UpdateChannelFeed(cy)
-			} else if cy >= len(v.ViewBufferLines()) {
-				err := v.SetCursor(cx, len(v.ViewBufferLines()))
-				if err != nil {
-					return errors.Errorf(
-						"Failed to set the cursor in %q to %d, %d: %+v",
-						v.Name(), cx, len(v.ViewBufferLines()), err)
-				}
-			}
+			ox, oy := v.Origin()
+			_, cy := v.Cursor()
+
+			chs.UpdateChannelFeed(cy + oy)
+			v.SetOrigin(ox, oy)
+
+			// cx, cy := v.Cursor()
+			// if (cy >= 0) && (cy < len(v.ViewBufferLines())) {
+			// 	chs.UpdateChannelFeed(cy)
+			// } else if cy >= len(v.ViewBufferLines()) {
+			// 	err := v.SetCursor(cx, len(v.ViewBufferLines()))
+			// 	if err != nil {
+			// 		return errors.Errorf(
+			// 			"Failed to set the cursor in %q to %d, %d: %+v",
+			// 			v.Name(), cx, len(v.ViewBufferLines()), err)
+			// 	}
+			// }
 		}
 
+		return nil
+	}
+}
+
+func (chs *Channels) moveView(dy int) func(*gocui.Gui, *gocui.View) error {
+	return func(g *gocui.Gui, v *gocui.View) error {
+		if v != nil && g.CurrentView() == v {
+			v.Autoscroll = false
+			ox, oy := v.Origin()
+			_, height := v.Size()
+
+			if (chs.currentIndex+dy < 0) || (chs.currentIndex+dy >= len(chs.channels)) {
+				return nil
+			}
+
+			chs.UpdateChannelFeed(chs.currentIndex + dy)
+
+			if chs.currentIndex-oy == height {
+				if (dy+oy >= 0) && (dy+oy+height <= len(v.ViewBufferLines())) {
+					if err := v.SetOrigin(ox, oy+dy); err != nil {
+						return errors.Errorf("Failed to set origin of %q to %d, %d",
+							v.Name(), ox, oy+dy)
+					}
+				}
+			} else if oy == chs.currentIndex+1 {
+				if (dy+oy >= 0) && (dy+oy+height <= len(v.ViewBufferLines())) {
+					if err := v.SetOrigin(ox, oy+dy); err != nil {
+						return errors.Errorf("Failed to set origin of %q to %d, %d",
+							v.Name(), ox, oy+dy)
+					}
+				}
+			} else if chs.currentIndex < oy {
+				if err := v.SetOrigin(ox, chs.currentIndex); err != nil {
+					return errors.Errorf("Failed to set origin of %q to %d, %d",
+						v.Name(), ox, chs.currentIndex)
+				}
+			} else if chs.currentIndex > oy+height {
+				if err := v.SetOrigin(ox, chs.currentIndex-height+1); err != nil {
+					return errors.Errorf("Failed to set origin of %q to %d, %d",
+						v.Name(), ox, chs.currentIndex)
+				}
+			} else {
+				if err := v.SetOrigin(ox, oy); err != nil {
+					return errors.Errorf("Failed to set origin of %q to %d, %d",
+						v.Name(), ox, oy)
+				}
+			}
+
+			// if (dy+oy >= 0) && (dy+oy+height <= len(v.ViewBufferLines())) {
+			// 	if err := v.SetOrigin(ox, oy+dy); err != nil {
+			// 		return errors.Errorf("Failed to set origin of %q to %d, %d",
+			// 			v.Name(), ox, oy+dy)
+			// 	}
+			// }
+		}
 		return nil
 	}
 }
@@ -554,13 +621,6 @@ func (chs *Channels) scrollView(dy int) func(*gocui.Gui, *gocui.View) error {
 			ox, oy := v.Origin()
 			_, height := v.Size()
 
-			if v.Name() == chatList {
-				cy := chs.currentIndex
-				if (dy+cy >= 0) && (dy+cy < len(v.ViewBufferLines())) {
-					chs.UpdateChannelFeed(dy + cy)
-				}
-			}
-
 			if (dy+oy >= 0) && (dy+oy+height <= len(v.ViewBufferLines())) {
 				if err := v.SetOrigin(ox, oy+dy); err != nil {
 					return errors.Errorf("Failed to set origin of %q to %d, %d",
@@ -608,25 +668,30 @@ func (chs *Channels) quitWithMessage() func(*gocui.Gui, *gocui.View) error {
 }
 
 func (chs *Channels) addScrolling(g *gocui.Gui, name string) error {
-	err := g.SetKeybinding(
-		name, gocui.KeyArrowUp, gocui.ModNone, chs.scrollView(-1))
-	if err != nil {
-		return errors.Errorf(
-			"failed to bind arrow up to %s: %+v", name, err)
+
+	if name != chatList {
+		err := g.SetKeybinding(
+			name, gocui.KeyArrowUp, gocui.ModNone, chs.scrollView(-1))
+		if err != nil {
+			return errors.Errorf(
+				"failed to bind arrow up to %s: %+v", name, err)
+		}
 	}
 
-	err = g.SetKeybinding(
+	err := g.SetKeybinding(
 		name, gocui.MouseWheelUp, gocui.ModNone, chs.scrollView(-1))
 	if err != nil {
 		return errors.Errorf(
 			"failed to bind mouse wheel up to %s: %+v", name, err)
 	}
 
-	err = g.SetKeybinding(
-		name, gocui.KeyArrowDown, gocui.ModNone, chs.scrollView(1))
-	if err != nil {
-		return errors.Errorf(
-			"failed to bind arrow down to %s: %+v", name, err)
+	if name != chatList {
+		err = g.SetKeybinding(
+			name, gocui.KeyArrowDown, gocui.ModNone, chs.scrollView(1))
+		if err != nil {
+			return errors.Errorf(
+				"failed to bind arrow down to %s: %+v", name, err)
+		}
 	}
 
 	err = g.SetKeybinding(

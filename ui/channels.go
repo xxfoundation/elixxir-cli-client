@@ -13,6 +13,7 @@ import (
 	jww "github.com/spf13/jwalterweatherman"
 	crypto "gitlab.com/elixxir/crypto/broadcast"
 	"golang.design/x/clipboard"
+	"runtime/debug"
 	"strconv"
 	"strings"
 	"sync"
@@ -45,6 +46,7 @@ func NewChannels(m *client.Manager) *Channels {
 	clipboardResult := make(chan bool)
 
 	go func() {
+		debug.SetPanicOnFault(true)
 		defer func() {
 			if err := recover(); err != nil {
 				jww.ERROR.Printf("Failed to initialize clipboard; clipboard use will"+
@@ -161,7 +163,7 @@ func (chs *Channels) UpdateChatList(selected int) {
 }
 
 func (chs *Channels) UpdateChannelFeed(chanID int) {
-	if chanID >= len(chs.channels) {
+	if chanID >= len(chs.channels) && chanID > 0 {
 		chanID = len(chs.channels) - 1
 	}
 

@@ -8,7 +8,6 @@
 package ui
 
 import (
-	"fmt"
 	"github.com/awesome-gocui/gocui"
 	"github.com/pkg/errors"
 	jww "github.com/spf13/jwalterweatherman"
@@ -23,6 +22,11 @@ const (
 
 func (chs *Channels) leaveChannel() func(*gocui.Gui, *gocui.View) error {
 	return func(g *gocui.Gui, v *gocui.View) error {
+
+		if len(chs.channels) == 0 {
+			return nil
+		}
+
 		v.Highlight = true
 		defer func() {
 			go func() {
@@ -36,7 +40,8 @@ func (chs *Channels) leaveChannel() func(*gocui.Gui, *gocui.View) error {
 		c := chs.channels[chs.currentIndex].c
 
 		maxX, maxY := g.Size()
-		if v, err := g.SetView(leaveGroupBox, maxX/2-40, maxY/2-8, maxX/2+40, maxY/2+8, 0); err != nil {
+		x0, y0, x1, y1 := fixDimensions(maxX/2-40, maxY/2-8, maxX/2+40, maxY/2+8, maxX, maxY)
+		if v, err := g.SetView(leaveGroupBox, x0, y0, x1, y1, 0); err != nil {
 			if err != gocui.ErrUnknownView {
 				return errors.Errorf(
 					"Failed to set view %q: %+v", leaveGroupBox, err)
@@ -46,11 +51,15 @@ func (chs *Channels) leaveChannel() func(*gocui.Gui, *gocui.View) error {
 			v.FrameRunes = []rune{'═', '║', '╔', '╗', '╚', '╝', '╠', '╣', '╦', '╩', '╬'}
 			// v.BgColor = gocui.Get256Color(236)
 
-			v.WriteString(fmt.Sprintf("\n\n      Are you sure you would like to leave the group %s?", c.Name))
-			v.WriteString(fmt.Sprintf("\n\n          ID: %s", c.ReceptionID))
+			v.WriteString("\n\n" +
+				CenterView("Are you sure you would like to leave the following group?", v) +
+				"\n\n" +
+				CenterView(c.Name, v) +
+				"\n\n" +
+				CenterView(c.ReceptionID.String(), v))
 		}
 
-		if v, err := g.SetView(leaveGroupSubmitButton, maxX/2-40+12, maxY/2-8+10, maxX/2-40+28, maxY/2-8+12, 0); err != nil {
+		if v, err := g.SetView(leaveGroupSubmitButton, maxX/2-40+12, y1-3, maxX/2-40+28, y1-1, 0); err != nil {
 			if err != gocui.ErrUnknownView {
 				return errors.Errorf(
 					"Failed to set view %q: %+v", leaveGroupSubmitButton, err)
@@ -59,7 +68,7 @@ func (chs *Channels) leaveChannel() func(*gocui.Gui, *gocui.View) error {
 			v.SelBgColor = gocui.ColorGreen
 			v.SelFgColor = gocui.ColorBlack
 
-			v.WriteString(centerView("Yes", v))
+			v.WriteString(CenterView("Yes", v))
 
 			err = g.SetKeybinding(
 				leaveGroupSubmitButton, gocui.MouseLeft, gocui.ModNone, chs.leaveGroup())
@@ -76,7 +85,7 @@ func (chs *Channels) leaveChannel() func(*gocui.Gui, *gocui.View) error {
 			}
 		}
 
-		if v, err := g.SetView(leaveGroupCancelButton, maxX/2+40-28, maxY/2-8+10, maxX/2+40-12, maxY/2-8+12, 0); err != nil {
+		if v, err := g.SetView(leaveGroupCancelButton, maxX/2+40-28, y1-3, maxX/2+40-12, y1-1, 0); err != nil {
 			if err != gocui.ErrUnknownView {
 				return errors.Errorf(
 					"Failed to set view %q: %+v", leaveGroupCancelButton, err)
@@ -85,7 +94,7 @@ func (chs *Channels) leaveChannel() func(*gocui.Gui, *gocui.View) error {
 			v.SelBgColor = gocui.ColorGreen
 			v.SelFgColor = gocui.ColorBlack
 
-			v.WriteString(centerView("No", v))
+			v.WriteString(CenterView("No", v))
 
 			err = g.SetKeybinding(
 				leaveGroupCancelButton, gocui.MouseLeft, gocui.ModNone, chs.closeLeaveBox())

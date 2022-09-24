@@ -16,7 +16,7 @@ build:
 	go mod tidy
 
 update_project:
-	GOFLAGS="" go get -d gitlab.com/elixxir/client@project/Channels
+	GOFLAGS="" go get -d gitlab.com/elixxir/client@fullyDecentrilizedChannels
 	GOFLAGS="" go get -d gitlab.com/elixxir/crypto@project/channels
 	GOFLAGS="" go get -d gitlab.com/elixxir/primitives@release
 	GOFLAGS="" go get -d gitlab.com/xx_network/crypto@release

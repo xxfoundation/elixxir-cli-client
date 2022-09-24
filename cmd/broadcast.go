@@ -68,13 +68,14 @@ var bCast = &cobra.Command{
 			jww.INFO.Printf("Connected to healthy network.")
 		}
 
-		username := viper.GetString("username")
+		username := viper.GetString("nickname")
+
+		quit <- struct{}{}
 
 		m := client.NewChannelManager(net, username)
 
 		chs := ui.NewChannels(m)
 
-		quit <- struct{}{}
 		chs.MakeUI()
 
 		err = net.StopNetworkFollower()
@@ -91,8 +92,8 @@ var bCast = &cobra.Command{
 // init is the initialization function for Cobra which defines commands and
 // flags.
 func init() {
-	bCast.Flags().StringP("username", "u", "",
-		"Join the channel with this username.")
-	bindPFlag(bCast.Flags(), "username", bCast.Use)
-	markFlagRequired(bCast, "username")
+	bCast.Flags().StringP("nickname", "n", "",
+		"Join the channel with this nickname.")
+	bindPFlag(bCast.Flags(), "nickname", bCast.Use)
+	markFlagRequired(bCast, "nickname")
 }
