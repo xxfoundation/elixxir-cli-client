@@ -10,15 +10,14 @@ require (
 	github.com/spf13/jwalterweatherman v1.1.0
 	github.com/spf13/pflag v1.0.5
 	github.com/spf13/viper v1.12.0
-	gitlab.com/elixxir/client v1.5.1-0.20220924171409-6020be630f0c
-	gitlab.com/elixxir/crypto v0.0.7-0.20220923164228-3f5620181081
+	gitlab.com/elixxir/client v1.5.1-0.20220928170652-fe87f3ae67b4
+	gitlab.com/elixxir/crypto v0.0.7-0.20220923233816-0364f1b203c6
 	gitlab.com/xx_network/primitives v0.0.4-0.20220809193445-9fc0a5209548
 	golang.design/x/clipboard v0.6.2
 )
 
 require (
 	git.xx.network/elixxir/grpc-web-go-client v0.0.0-20220908170150-ef04339ffe65 // indirect
-	github.com/andres-erbsen/clock v0.0.0-20160526145045-9e14626cd129 // indirect
 	github.com/badoux/checkmail v1.2.1 // indirect
 	github.com/cenkalti/backoff/v4 v4.1.3 // indirect
 	github.com/cloudflare/circl v1.2.0 // indirect
@@ -43,7 +42,6 @@ require (
 	github.com/nfnt/resize v0.0.0-20180221191011-83c6a9932646 // indirect
 	github.com/pelletier/go-toml v1.9.5 // indirect
 	github.com/pelletier/go-toml/v2 v2.0.2 // indirect
-	github.com/pkg/profile v1.6.0 // indirect
 	github.com/rivo/uniseg v0.1.0 // indirect
 	github.com/rs/cors v1.8.2 // indirect
 	github.com/skip2/go-qrcode v0.0.0-20200617195104-da1b6568686e // indirect
@@ -56,14 +54,13 @@ require (
 	github.com/tyler-smith/go-bip39 v1.1.0 // indirect
 	github.com/zeebo/blake3 v0.2.3 // indirect
 	gitlab.com/elixxir/bloomfilter v0.0.0-20211222005329-7d931ceead6f // indirect
-	gitlab.com/elixxir/comms v0.0.4-0.20220913220502-eed192f654bd // indirect
+	gitlab.com/elixxir/comms v0.0.4-0.20220916185715-f1e9a5eda939 // indirect
 	gitlab.com/elixxir/ekv v0.2.1 // indirect
 	gitlab.com/elixxir/primitives v0.0.3-0.20220901220638-1acc75fabdc6 // indirect
-	gitlab.com/xx_network/comms v0.0.4-0.20220913215811-c4bf83b27de3 // indirect
+	gitlab.com/xx_network/comms v0.0.4-0.20220916185248-8a984b8594de // indirect
 	gitlab.com/xx_network/crypto v0.0.5-0.20220913213008-98764f5b3287 // indirect
 	gitlab.com/xx_network/ring v0.0.3-0.20220222211904-da613960ad93 // indirect
 	go.uber.org/atomic v1.10.0 // indirect
-	go.uber.org/ratelimit v0.2.0 // indirect
 	golang.org/x/crypto v0.0.0-20220722155217-630584e8d5aa // indirect
 	golang.org/x/exp v0.0.0-20200331195152-e8c3332aa8e5 // indirect
 	golang.org/x/image v0.0.0-20211028202545-6944b10bf410 // indirect

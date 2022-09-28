@@ -57,10 +57,14 @@ func NewChannelManager(net *xxdk.Cmix, nickname string) *Manager {
 		counter:       0,
 	}
 
+	f := func(path string) (channels.EventModel, error) {
+		return m, nil
+	}
+
 	obj, err := net.GetStorage().GetKV().Get(identityKey, 0)
 	if err == nil {
 		m.chanMan, err = channels.LoadManager(string(obj.Data),
-			net.GetStorage().GetKV(), net.GetCmix(), net.GetRng(), m)
+			net.GetStorage().GetKV(), net.GetCmix(), net.GetRng(), f)
 		if err != nil {
 			jww.FATAL.Panicf("Failed create new manager: %+v", err)
 		}
@@ -103,7 +107,7 @@ func NewChannelManager(net *xxdk.Cmix, nickname string) *Manager {
 	m.username = chosenUsername
 
 	m.chanMan, err = channels.NewManager(chosenIdentity,
-		net.GetStorage().GetKV(), net.GetCmix(), net.GetRng(), m)
+		net.GetStorage().GetKV(), net.GetCmix(), net.GetRng(), f)
 	if err != nil {
 		jww.FATAL.Panicf("Failed create new manager: %+v", err)
 	}
